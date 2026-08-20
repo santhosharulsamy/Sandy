@@ -229,6 +229,30 @@ print(s.replace("o", "0"))    # Hell0, W0rld
 print(len(s))                 # 12
 ```
 
+### String interpolation
+
+Drop any expression into a string with `{ }` — it's evaluated and inserted
+using the same formatting `print` uses:
+
+```sandy
+name = "Sandy"
+age = 3
+
+print("Hi, {name}!")                    # Hi, Sandy!
+print("{name} is {age} years old.")     # Sandy is 3 years old.
+print("Next year: {age + 1}")           # Next year: 4
+print("Shouting: {name.upper()}")       # Shouting: SANDY
+
+scores = { "math": 90 }
+print("Math: {scores["math"]}")         # Math: 90 (nested quotes are fine)
+
+# Want a literal brace? Double it:
+print("{{not interpolated}}")           # {not interpolated}
+```
+
+Any expression works inside `{ }` — arithmetic, function calls, indexing,
+method calls, even nested strings.
+
 ---
 
 ## Built-in functions
@@ -259,6 +283,7 @@ The [`examples/`](examples/) directory has runnable programs:
 | File | Shows off |
 | --- | --- |
 | `hello.sy` | The basics — printing and variables |
+| `greet.sy` | String interpolation |
 | `fizzbuzz.sy` | Loops and conditionals |
 | `fib.sy` | Recursion and iteration |
 | `data.sy` | Lists, maps, methods, higher-order functions |
@@ -317,7 +342,6 @@ broken.sy: RuntimeError (line 3): undefined variable 'total'
 
 Sandy 0.1 is a complete, working interpreter. Natural next steps:
 
-- String interpolation (`"hi {name}"`)
 - More iteration helpers (`map`, `filter`, `enumerate`)
 - Modules / `import`
 - A bytecode compiler + VM for extra speed

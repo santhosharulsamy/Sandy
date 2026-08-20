@@ -1,0 +1,22 @@
+# String interpolation: drop {expressions} right into a string.
+
+name = "Sandy"
+age = 3
+
+print("Hi, {name}!")
+print("{name} is {age} year(s) old.")
+
+# Any expression works inside the braces.
+print("Next year {name} will be {age + 1}.")
+print("Shouting: {name.upper()}")
+print("2 + 3 * 4 = {2 + 3 * 4}")
+
+# Indexing and calls are fine too.
+scores = { "math": 90, "art": 78 }
+print("Math score: {scores["math"]}")
+
+fn square(n) { return n * n }
+print("7 squared is {square(7)}")
+
+# Use {{ and }} for literal braces.
+print("A JSON-ish look: {{ \"key\": {age} }}")

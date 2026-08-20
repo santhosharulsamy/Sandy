@@ -160,6 +160,15 @@ class Interpreter:
     def _eval_str(self, node, env):
         return node.value
 
+    def _eval_interp(self, node, env):
+        out = []
+        for kind, payload in node.parts:
+            if kind == "lit":
+                out.append(payload)
+            else:
+                out.append(to_str(self._eval(payload, env)))
+        return "".join(out)
+
     def _eval_bool(self, node, env):
         return node.value
 
@@ -417,6 +426,7 @@ Interpreter._EXPR_DISPATCH = {
     N.IntLit: Interpreter._eval_int,
     N.FloatLit: Interpreter._eval_float,
     N.StrLit: Interpreter._eval_str,
+    N.InterpStr: Interpreter._eval_interp,
     N.BoolLit: Interpreter._eval_bool,
     N.NilLit: Interpreter._eval_nil,
     N.ListLit: Interpreter._eval_list,

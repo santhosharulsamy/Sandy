@@ -51,6 +51,36 @@ class TestBasics(unittest.TestCase):
         self.assertEqual(run("x = 10\nx /= 4\nprint(x)"), "2.5\n")
 
 
+class TestInterpolation(unittest.TestCase):
+    def test_simple(self):
+        self.assertEqual(run('name = "Sandy"\nprint("hi {name}")'), "hi Sandy\n")
+
+    def test_expression(self):
+        self.assertEqual(run('print("{2 + 3 * 4}")'), "14\n")
+
+    def test_multiple_and_text(self):
+        code = 'a = 1\nb = 2\nprint("{a} and {b} make {a + b}")'
+        self.assertEqual(run(code), "1 and 2 make 3\n")
+
+    def test_method_call_inside(self):
+        self.assertEqual(run('n = "hi"\nprint("{n.upper()}!")'), "HI!\n")
+
+    def test_nested_quotes_and_index(self):
+        code = 'm = { "k": 9 }\nprint("val={m["k"]}")'
+        self.assertEqual(run(code), "val=9\n")
+
+    def test_literal_braces(self):
+        self.assertEqual(run('print("{{literal}}")'), "{literal}\n")
+
+    def test_non_string_values(self):
+        code = 'print("list={[1, 2]} nil={nil} bool={true}")'
+        self.assertEqual(run(code), "list=[1, 2] nil=nil bool=true\n")
+
+    def test_empty_interpolation_errors(self):
+        with self.assertRaises((ParseError, LexError)):
+            run('print("bad {}")')
+
+
 class TestControlFlow(unittest.TestCase):
     def test_if_elif_else(self):
         code = "x = 5\nif x > 10 { print(\"big\") } elif x > 3 { print(\"mid\") } else { print(\"small\") }"

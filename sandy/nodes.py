@@ -29,6 +29,13 @@ class StrLit(Node):
         self.value = value; self.line = line
 
 
+class InterpStr(Node):
+    # parts: list of ("lit", text) or ("expr", node)
+    __slots__ = ("parts", "line")
+    def __init__(self, parts, line):
+        self.parts = parts; self.line = line
+
+
 class BoolLit(Node):
     __slots__ = ("value", "line")
     def __init__(self, value, line):

@@ -4,7 +4,7 @@ Produces an AST (see nodes.py) from the token stream. Operator precedence
 is handled with a small precedence-climbing table.
 """
 
-from .errors import ParseError
+from .errors import ParseError, SandyError
 from .tokens import TokenType as T
 from . import nodes as N
 
@@ -262,6 +262,8 @@ class Parser:
             self._advance(); return N.FloatLit(tok.value, tok.line)
         if t == T.STRING:
             self._advance(); return N.StrLit(tok.value, tok.line)
+        if t == T.FSTRING:
+            self._advance(); return self._interp_string(tok)
         if t == T.TRUE:
             self._advance(); return N.BoolLit(True, tok.line)
         if t == T.FALSE:
@@ -281,6 +283,18 @@ class Parser:
             return self._map_literal()
         got = tok.value if tok.value is not None else tok.type
         raise ParseError(f"unexpected {got!r}", tok.line)
+
+    def _interp_string(self, tok):
+        """Build an InterpStr node from an FSTRING token, parsing each
+        embedded expression's raw source into an AST."""
+        parts = []
+        for part in tok.value:
+            if part[0] == "lit":
+                parts.append(("lit", part[1]))
+            else:
+                _, raw, line = part
+                parts.append(("expr", _parse_embedded_expr(raw, line)))
+        return N.InterpStr(parts, tok.line)
 
     def _list_literal(self):
         line = self._advance().line  # '['
@@ -314,6 +328,24 @@ class Parser:
         self._expect(T.COLON, "':'")
         value = self._expression()
         return (key, value)
+
+
+def _parse_embedded_expr(raw, line):
+    """Parse the raw source of a string interpolation into a single
+    expression node. Reports errors against the string's line."""
+    from .lexer import tokenize
+    try:
+        tokens = tokenize(raw)
+    except SandyError:
+        raise ParseError("invalid expression in interpolation", line)
+    sub = Parser(tokens)
+    if sub._check(T.EOF):
+        raise ParseError("empty interpolation in string", line)
+    node = sub._expression()
+    sub._skip_newlines()
+    if not sub._check(T.EOF):
+        raise ParseError("invalid expression in interpolation", line)
+    return node
 
 
 def parse(tokens):

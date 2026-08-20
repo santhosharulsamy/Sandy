@@ -128,10 +128,25 @@ class Lexer:
             self._add(TokenType.IDENT, text)
 
     def _string(self, quote):
+        """Scan a string literal, supporting {expr} interpolation.
+
+        `{{` and `}}` produce literal `{` and `}`. A string with no
+        interpolation becomes a plain STRING token; otherwise it becomes an
+        FSTRING token whose value is a list of parts, each either
+        ("lit", text) or ("expr", raw_source, line).
+        """
         src = self.src
         n = len(src)
         self.pos += 1  # opening quote
-        out = []
+        parts = []
+        buf = []
+        has_interp = False
+
+        def flush_lit():
+            if buf:
+                parts.append(("lit", "".join(buf)))
+                buf.clear()
+
         while self.pos < n and src[self.pos] != quote:
             ch = src[self.pos]
             if ch == "\n":
@@ -140,16 +155,88 @@ class Lexer:
                 self.pos += 1
                 if self.pos >= n:
                     self.error("unterminated string literal")
-                esc = src[self.pos]
-                out.append(_ESCAPES.get(esc, esc))
+                buf.append(_ESCAPES.get(src[self.pos], src[self.pos]))
                 self.pos += 1
                 continue
-            out.append(ch)
+            if ch == "{":
+                if self._peek(1) == "{":  # escaped brace
+                    buf.append("{")
+                    self.pos += 2
+                    continue
+                has_interp = True
+                flush_lit()
+                self.pos += 1  # consume '{'
+                raw, line = self._scan_interp()
+                if raw.strip() == "":
+                    self.error("empty interpolation in string")
+                parts.append(("expr", raw, line))
+                continue
+            if ch == "}":
+                if self._peek(1) == "}":  # escaped brace
+                    buf.append("}")
+                    self.pos += 2
+                    continue
+                buf.append("}")
+                self.pos += 1
+                continue
+            buf.append(ch)
             self.pos += 1
+
         if self.pos >= n:
             self.error("unterminated string literal")
         self.pos += 1  # closing quote
-        self._add(TokenType.STRING, "".join(out))
+        flush_lit()
+
+        if has_interp:
+            self._add(TokenType.FSTRING, parts)
+        else:
+            text = parts[0][1] if parts else ""
+            self._add(TokenType.STRING, text)
+
+    def _scan_interp(self):
+        """Read the raw source of a `{ ... }` interpolation (self.pos is just
+        past the '{'). Tracks brace depth and skips nested strings so that
+        maps and quoted braces inside the expression don't end it early.
+        Returns (raw_source, line) and leaves self.pos just past the '}'.
+        """
+        src = self.src
+        n = len(src)
+        start = self.pos
+        line = self.line
+        depth = 1
+        while self.pos < n:
+            c = src[self.pos]
+            if c == "\n":
+                self.error("unterminated interpolation in string")
+            if c == '"' or c == "'":
+                self._skip_nested_string(c)
+                continue
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    raw = src[start:self.pos]
+                    self.pos += 1  # consume '}'
+                    return raw, line
+            self.pos += 1
+        self.error("unterminated interpolation in string")
+
+    def _skip_nested_string(self, quote):
+        """Advance past a nested string literal inside an interpolation."""
+        src = self.src
+        n = len(src)
+        self.pos += 1  # opening quote
+        while self.pos < n and src[self.pos] != quote:
+            if src[self.pos] == "\\":
+                self.pos += 2
+                continue
+            if src[self.pos] == "\n":
+                self.error("unterminated string in interpolation")
+            self.pos += 1
+        if self.pos >= n:
+            self.error("unterminated string in interpolation")
+        self.pos += 1  # closing quote
 
     def _operator(self):
         src = self.src

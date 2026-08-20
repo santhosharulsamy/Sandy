@@ -6,6 +6,7 @@ class TokenType:
     INT = "INT"
     FLOAT = "FLOAT"
     STRING = "STRING"
+    FSTRING = "FSTRING"  # interpolated string: value is a list of parts
     IDENT = "IDENT"
 
     # Keywords
