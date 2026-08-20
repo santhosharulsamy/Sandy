@@ -185,6 +185,25 @@ class TestErrors(unittest.TestCase):
         with self.assertRaises(RuntimeErrorSandy):
             run("a = [1]\nprint(a[5])")
 
+    def test_file_io_roundtrip(self):
+        import tempfile
+        d = tempfile.mkdtemp()
+        p = os.path.join(d, "data.txt").replace("\\", "/")
+        out = run(
+            f'write_file("{p}", "a\\nb\\n")\n'
+            f'append_file("{p}", "c\\n")\n'
+            f'print(read_file("{p}"))\n'
+            f'print(len(read_lines("{p}")))')
+        self.assertEqual(out, "a\nb\nc\n\n3\n")
+
+    def test_read_file_error(self):
+        try:
+            run('read_file("/no/such/sandy_file.txt")')
+        except RuntimeErrorSandy as e:
+            self.assertIn("cannot read", e.message)
+        else:
+            self.fail("expected RuntimeErrorSandy")
+
     def test_syntax_error_has_column(self):
         # Column info lets the reporter draw a caret at the exact spot.
         try:

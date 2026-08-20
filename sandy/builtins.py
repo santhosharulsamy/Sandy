@@ -261,6 +261,45 @@ def make_builtins(interp):
         sep = _need_str(sep, "join", line)
         return sep.join(to_str(x) for x in lst)
 
+    # -- file input / output --
+    @reg("read_file", 1)
+    def _read_file(args, line):
+        path = _need_str(args[0], "read_file", line)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read()
+        except OSError as e:
+            raise RuntimeErrorSandy(f"cannot read {path!r}: {e.strerror}", line)
+
+    @reg("read_lines", 1)
+    def _read_lines(args, line):
+        path = _need_str(args[0], "read_lines", line)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read().splitlines()
+        except OSError as e:
+            raise RuntimeErrorSandy(f"cannot read {path!r}: {e.strerror}", line)
+
+    @reg("write_file", 2)
+    def _write_file(args, line):
+        path = _need_str(args[0], "write_file", line)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(to_str(args[1]))
+        except OSError as e:
+            raise RuntimeErrorSandy(f"cannot write {path!r}: {e.strerror}", line)
+        return None
+
+    @reg("append_file", 2)
+    def _append_file(args, line):
+        path = _need_str(args[0], "append_file", line)
+        try:
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(to_str(args[1]))
+        except OSError as e:
+            raise RuntimeErrorSandy(f"cannot append {path!r}: {e.strerror}", line)
+        return None
+
     return B
 
 

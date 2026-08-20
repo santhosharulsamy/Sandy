@@ -357,6 +357,8 @@ method calls, even nested strings.
 | `push(list, x)`, `pop(list)` | Mutate a list |
 | `keys(map)`, `values(map)`, `has(container, x)` | Collection helpers |
 | `upper`, `lower`, `trim`, `split(s, sep?)`, `join(list, sep)` | String helpers |
+| `read_file(path)`, `read_lines(path)` | Read a file (whole, or as a list of lines) |
+| `write_file(path, text)`, `append_file(path, text)` | Write/append a file |
 
 Many of these also work as **methods**: `text.upper()`, `list.push(x)`,
 `map.keys()`, `list.sort()`, `list.reverse()`, `str.replace(a, b)`, and more.
