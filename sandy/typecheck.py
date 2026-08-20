@@ -228,9 +228,13 @@ class TypeChecker:
         return "list"
 
     def _i_map(self, node, scope):
+        kts, vts = [], []
         for k, v in node.pairs:
-            self._infer(k, scope)
-            self._infer(v, scope)
+            kts.append(self._infer(k, scope))
+            vts.append(self._infer(v, scope))
+        if kts and all(k == kts[0] and k not in ("any", None) for k in kts) \
+                and all(v == vts[0] and v not in ("any", None) for v in vts):
+            return f"map<{kts[0]},{vts[0]}>"
         return "map"
 
     def _i_interp(self, node, scope):

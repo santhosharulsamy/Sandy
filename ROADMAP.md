@@ -114,8 +114,12 @@ Turn Sandy into real machine code and single-file binaries.
       growable C arrays: literals, indexing, index-set, `len`, `push`,
       for-iteration, printing. ~100× faster per element than the VM. Stays on
       the "typed = fast" thesis — no boxing, no runtime type dispatch.
-- [ ] Native maps, and heterogeneous/dynamic lists (a tagged-value runtime)
-- [ ] Garbage collection (native strings and lists currently leak — fine for
+- [x] Native **typed maps** `map<K,V>` (K int/string, V scalar) as an unboxed
+      open-addressing hash table: literals, get, set, `has`, `len`, with
+      growth/rehash. (Map printing and iteration still VM-only.)
+- [ ] Native map printing/iteration (needs insertion-order tracking to match
+      the interpreter), heterogeneous/dynamic lists (a tagged-value runtime)
+- [ ] Garbage collection (native strings/lists/maps currently leak — fine for
       short programs, not for long-running ones)
 - [ ] Dynamic `any` values, closures
 - [ ] Consider an LLVM backend once the C route is fully proven

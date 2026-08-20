@@ -9,6 +9,9 @@ where types make native code generation sound and worthwhile:
     * homogeneous typed lists list<int>/list<float>/list<string>/list<bool>:
       literals, indexing, index-assignment, len(), push(), for-iteration,
       and printing — compiled to unboxed growable C arrays (no tagging)
+    * homogeneous typed maps map<K,V> (K int/string, V scalar): literals,
+      indexing (get), index-assignment (set), has(), len() — compiled to an
+      unboxed open-addressing hash table (map printing/iteration not yet)
     * functions with typed parameters and a return type, incl. recursion
     * arithmetic, comparisons, and/or/not, unary minus
     * strings: concatenation (+), repetition (*), ordering, len(), str(),
@@ -45,7 +48,7 @@ _ZERO = {"int": "0", "float": "0.0", "bool": "0", "string": '""'}
 _NUM = ("int", "float")
 
 # Global builtins the native backend understands.
-_NATIVE_BUILTINS = {"len", "str", "push"}
+_NATIVE_BUILTINS = {"len", "str", "push", "has"}
 
 # String methods -> (C helper, result type).
 _STRING_METHODS = {
@@ -173,11 +176,32 @@ def _cstr(s):
 _ELEM = {"int": ("i", "long long"), "float": ("d", "double"),
          "string": ("s", "const char*"), "bool": ("b", "int")}
 
+# Map key types we support natively (values use _ELEM).
+_KEY = {"string": ("s", "const char*"), "int": ("i", "long long")}
+
 
 def _list_base(t):
     """'list' base of a type, or None if it isn't a list type."""
     if isinstance(t, str) and t.startswith("list<") and t.endswith(">"):
         return t[5:-1]
+    return None
+
+
+def _map_kv(t):
+    """(key, value) types of a map<K,V>, or None if `t` isn't a map type."""
+    if isinstance(t, str) and t.startswith("map<") and t.endswith(">"):
+        inner = t[4:-1]
+        depth, comma = 0, -1
+        for i, ch in enumerate(inner):
+            if ch == "<":
+                depth += 1
+            elif ch == ">":
+                depth -= 1
+            elif ch == "," and depth == 0:
+                comma = i
+                break
+        if comma != -1:
+            return inner[:comma].strip(), inner[comma + 1:].strip()
     return None
 
 
@@ -210,6 +234,76 @@ static void sy_lset_{sfx}(SyList_{sfx}* L, long long i, {ct} v, int line) {{
 """
 
 
+def _map_key_helpers(kt):
+    """Hash and equality for a native map key type (emitted once per key type)."""
+    ks, kc = _KEY[kt]
+    if kt == "string":
+        return f"""
+static unsigned long sy_hash_{ks}(const char* s) {{
+    unsigned long h = 1469598103934665603UL;
+    while (*s) {{ h ^= (unsigned char)*s++; h *= 1099511628211UL; }}
+    return h;
+}}
+static int sy_keq_{ks}(const char* a, const char* b) {{ return strcmp(a, b) == 0; }}
+"""
+    return f"""
+static unsigned long sy_hash_{ks}(long long k) {{
+    unsigned long x = (unsigned long)k; x *= 0x9E3779B97F4A7C15UL; return x ^ (x >> 29);
+}}
+static int sy_keq_{ks}(long long a, long long b) {{ return a == b; }}
+"""
+
+
+def _map_runtime(kt, vt):
+    """C source for an open-addressing hash map from `kt` keys to `vt` values."""
+    ks, kc = _KEY[kt]
+    vs, vc = _ELEM[vt]
+    mt = f"SyMap_{ks}_{vs}"
+    if kt == "string":
+        notfound = ('fprintf(stderr, "RuntimeError (line %d): key \'%s\' not '
+                    'found in map\\n", line, k);')
+    else:
+        notfound = ('fprintf(stderr, "RuntimeError (line %d): key %lld not '
+                    'found in map\\n", line, k);')
+    return f"""
+typedef struct {{ {kc}* keys; {vc}* vals; char* used; long long cap, len; }} {mt};
+static {mt}* sy_mnew_{ks}_{vs}(void) {{
+    {mt}* m = ({mt}*)malloc(sizeof({mt}));
+    m->cap = 8; m->len = 0;
+    m->keys = ({kc}*)calloc(8, sizeof({kc}));
+    m->vals = ({vc}*)malloc(8 * sizeof({vc}));
+    m->used = (char*)calloc(8, 1);
+    return m;
+}}
+static void sy_mput_{ks}_{vs}({mt}* m, {kc} k, {vc} v);
+static void sy_mgrow_{ks}_{vs}({mt}* m) {{
+    long long oc = m->cap; {kc}* ok = m->keys; {vc}* ov = m->vals; char* ou = m->used;
+    m->cap = oc * 2; m->len = 0;
+    m->keys = ({kc}*)calloc((size_t)m->cap, sizeof({kc}));
+    m->vals = ({vc}*)malloc((size_t)m->cap * sizeof({vc}));
+    m->used = (char*)calloc((size_t)m->cap, 1);
+    for (long long i = 0; i < oc; i++) if (ou[i]) sy_mput_{ks}_{vs}(m, ok[i], ov[i]);
+    free(ok); free(ov); free(ou);
+}}
+static void sy_mput_{ks}_{vs}({mt}* m, {kc} k, {vc} v) {{
+    if ((m->len + 1) * 10 >= m->cap * 7) sy_mgrow_{ks}_{vs}(m);
+    unsigned long h = sy_hash_{ks}(k) & (unsigned long)(m->cap - 1);
+    while (m->used[h]) {{ if (sy_keq_{ks}(m->keys[h], k)) {{ m->vals[h] = v; return; }} h = (h + 1) & (unsigned long)(m->cap - 1); }}
+    m->used[h] = 1; m->keys[h] = k; m->vals[h] = v; m->len++;
+}}
+static {vc} sy_mget_{ks}_{vs}({mt}* m, {kc} k, int line) {{
+    unsigned long h = sy_hash_{ks}(k) & (unsigned long)(m->cap - 1);
+    while (m->used[h]) {{ if (sy_keq_{ks}(m->keys[h], k)) return m->vals[h]; h = (h + 1) & (unsigned long)(m->cap - 1); }}
+    {notfound} exit(1);
+}}
+static int sy_mhas_{ks}_{vs}({mt}* m, {kc} k) {{
+    unsigned long h = sy_hash_{ks}(k) & (unsigned long)(m->cap - 1);
+    while (m->used[h]) {{ if (sy_keq_{ks}(m->keys[h], k)) return 1; h = (h + 1) & (unsigned long)(m->cap - 1); }}
+    return 0;
+}}
+"""
+
+
 class _Sig:
     __slots__ = ("params", "ptypes", "ret")
 
@@ -223,6 +317,7 @@ class CBackend:
     def __init__(self):
         self.funcs = {}
         self.lists_needed = set()  # element types of lists used (for runtime)
+        self.maps_needed = set()   # (key, value) type pairs of maps used
         self._tmp = 0
 
     # -- entry --
@@ -235,7 +330,7 @@ class CBackend:
         main_body = self._emit_main(topstmts)
         return self._assemble(sections, main_body)
 
-    # C type / zero-value for a (possibly list) Sandy type.
+    # C type / zero-value for a (possibly list/map) Sandy type.
     def _cty(self, t):
         et = _list_base(t)
         if et is not None:
@@ -245,12 +340,23 @@ class CBackend:
                     f"string, not '{et}'", None)
             self.lists_needed.add(et)
             return f"SyList_{_ELEM[et][0]}*"
+        kv = _map_kv(t)
+        if kv is not None:
+            kt, vt = kv
+            if kt not in _KEY or vt not in _ELEM:
+                raise NativeUnsupported(
+                    f"native maps support key int/string and scalar values, "
+                    f"not map<{kt},{vt}>", None)
+            self.maps_needed.add((kt, vt))
+            return f"SyMap_{_KEY[kt][0]}_{_ELEM[vt][0]}*"
         if t not in C_TYPE:
             raise NativeUnsupported(f"unsupported native type '{t or 'any'}'", None)
         return C_TYPE[t]
 
     def _czero(self, t):
-        return "NULL" if _list_base(t) is not None else _ZERO[t]
+        if _list_base(t) is not None or _map_kv(t) is not None:
+            return "NULL"
+        return _ZERO[t]
 
     def _newtmp(self):
         self._tmp += 1
@@ -258,13 +364,14 @@ class CBackend:
 
     def _register(self, fd):
         for pt in fd.param_types:
-            if pt not in C_TYPE and _list_base(pt) is None:
+            if pt not in C_TYPE and _list_base(pt) is None and _map_kv(pt) is None:
                 raise NativeUnsupported(
                     f"native function '{fd.name}' needs typed parameters "
-                    f"(int/float/bool/string/list<T>); got '{pt or 'any'}'",
-                    fd.line)
+                    f"(int/float/bool/string/list<T>/map<K,V>); got "
+                    f"'{pt or 'any'}'", fd.line)
         ret = fd.ret_type
-        if ret is not None and ret not in C_TYPE and _list_base(ret) is None:
+        if ret is not None and ret not in C_TYPE and _list_base(ret) is None \
+                and _map_kv(ret) is None:
             raise NativeUnsupported(
                 f"native function '{fd.name}' has unsupported return type "
                 f"'{ret}'", fd.line)
@@ -315,7 +422,8 @@ class CBackend:
                     name = s.target.name
                     if s.annotation is not None:
                         vt = s.annotation
-                        if vt not in C_TYPE and _list_base(vt) is None:
+                        if vt not in C_TYPE and _list_base(vt) is None \
+                                and _map_kv(vt) is None:
                             raise NativeUnsupported(
                                 f"unsupported native type '{vt}'", s.line)
                     elif s.op != "=":  # compound needs existing var
@@ -378,6 +486,8 @@ class CBackend:
                 value = N.BinaryOp(s.op[0], s.target, s.value, s.line)
             if isinstance(value, N.ListLit):
                 code, vt = self._list_literal(value, scope, sig, declared)
+            elif isinstance(value, N.MapLit):
+                code, vt = self._map_literal(value, scope, sig, declared)
             else:
                 code, vt = self._expr(value, scope, sig)
             self._check_assignable(declared, vt, s.line, name)
@@ -428,22 +538,33 @@ class CBackend:
         target = s.target
         tc, tt = self._expr(target.target, scope, sig)
         et = _list_base(tt)
-        if et is None:
+        kv = _map_kv(tt)
+        if et is None and kv is None:
             raise NativeUnsupported(
                 f"cannot index-assign into a {tt} in native mode", s.line)
-        ic, it = self._expr(target.index, scope, sig)
-        if it != "int":
-            raise NativeUnsupported("list index must be an int", s.line)
-        sfx = _ELEM[et][0]
         if s.op == "=":
             value = s.value
         else:
             value = N.BinaryOp(s.op[0], target, s.value, s.line)
+        if et is not None:
+            ic, it = self._expr(target.index, scope, sig)
+            if it != "int":
+                raise NativeUnsupported("list index must be an int", s.line)
+            vc, vt = self._expr(value, scope, sig)
+            self._check_assignable(et, vt, s.line, "list element")
+            if et == "float" and vt == "int":
+                vc = f"(double)({vc})"
+            return [f"{ind}sy_lset_{_ELEM[et][0]}({tc}, {ic}, {vc}, {s.line});"]
+        # map index-assignment
+        kt, mvt = kv
+        kc, kct = self._expr(target.index, scope, sig)
+        self._check_assignable(kt, kct, s.line, "map key")
         vc, vt = self._expr(value, scope, sig)
-        self._check_assignable(et, vt, s.line, "list element")
-        if et == "float" and vt == "int":
+        self._check_assignable(mvt, vt, s.line, "map value")
+        if mvt == "float" and vt == "int":
             vc = f"(double)({vc})"
-        return [f"{ind}sy_lset_{sfx}({tc}, {ic}, {vc}, {s.line});"]
+        ks, vs = _KEY[kt][0], _ELEM[mvt][0]
+        return [f"{ind}sy_mput_{ks}_{vs}({tc}, {kc}, {vc});"]
 
     def _forvar_type(self, s, scope, sig):
         it = s.iterable
@@ -604,11 +725,43 @@ class CBackend:
             return self._call(e, scope, sig, allow_void)
         if t is N.ListLit:
             return self._list_literal(e, scope, sig, None)
+        if t is N.MapLit:
+            return self._map_literal(e, scope, sig, None)
         if t is N.Index:
             return self._index(e, scope, sig)
         raise NativeUnsupported(
             f"{type(e).__name__} expressions are not supported in native mode",
             getattr(e, "line", None))
+
+    def _map_literal(self, e, scope, sig, expected):
+        kt = vt = None
+        pairs = []
+        for k, v in e.pairs:
+            kc, kct = self._expr(k, scope, sig)
+            vc, vct = self._expr(v, scope, sig)
+            kt = kct if kt is None else kt
+            vt = vct if vt is None else vt
+            if kct != kt or vct != vt:
+                raise NativeUnsupported(
+                    "native map literals must be homogeneous", e.line)
+            pairs.append((kc, vc))
+        if kt is None:  # empty literal
+            kv = _map_kv(expected) if expected else None
+            if kv is None:
+                raise NativeUnsupported(
+                    "empty map needs a type annotation in native mode, "
+                    "e.g. `m: map<string, int> = {}`", e.line)
+            kt, vt = kv
+        if kt not in _KEY or vt not in _ELEM:
+            raise NativeUnsupported(
+                f"native maps don't support map<{kt},{vt}>", e.line)
+        ks, vs = _KEY[kt][0], _ELEM[vt][0]
+        self.maps_needed.add((kt, vt))
+        tmp = self._newtmp()
+        stmts = [f"SyMap_{ks}_{vs}* {tmp} = sy_mnew_{ks}_{vs}();"]
+        for kc, vc in pairs:
+            stmts.append(f"sy_mput_{ks}_{vs}({tmp}, {kc}, {vc});")
+        return ("({ " + " ".join(stmts) + f" {tmp}; }})", f"map<{kt},{vt}>")
 
     def _list_literal(self, e, scope, sig, expected):
         """Build a native list. `expected` is the list type from context (used
@@ -644,14 +797,19 @@ class CBackend:
     def _index(self, e, scope, sig):
         tc, tt = self._expr(e.target, scope, sig)
         et = _list_base(tt)
-        if et is None:
-            raise NativeUnsupported(
-                f"cannot index a {tt} in native mode", e.line)
-        ic, it = self._expr(e.index, scope, sig)
-        if it != "int":
-            raise NativeUnsupported("list index must be an int", e.line)
-        sfx = _ELEM[et][0]
-        return (f"sy_lget_{sfx}({tc}, {ic}, {e.line})", et)
+        if et is not None:
+            ic, it = self._expr(e.index, scope, sig)
+            if it != "int":
+                raise NativeUnsupported("list index must be an int", e.line)
+            return (f"sy_lget_{_ELEM[et][0]}({tc}, {ic}, {e.line})", et)
+        kv = _map_kv(tt)
+        if kv is not None:
+            kt, vt = kv
+            kc, kct = self._expr(e.index, scope, sig)
+            self._check_assignable(kt, kct, e.line, "map key")
+            ks, vs = _KEY[kt][0], _ELEM[vt][0]
+            return (f"sy_mget_{ks}_{vs}({tc}, {kc}, {e.line})", vt)
+        raise NativeUnsupported(f"cannot index a {tt} in native mode", e.line)
 
     def _binary(self, e, scope, sig):
         lc, lt = self._expr(e.left, scope, sig)
@@ -742,6 +900,18 @@ class CBackend:
             if et == "float" and vt == "int":
                 vc = f"(double)({vc})"
             return (f"sy_lpush_{_ELEM[et][0]}({lc}, {vc})", lt)
+        if name == "has":
+            if len(e.args) != 2:
+                raise NativeUnsupported("has() expects 2 arguments", e.line)
+            mc, mt = self._expr(e.args[0], scope, sig)
+            kv = _map_kv(mt)
+            if kv is None:
+                raise NativeUnsupported(
+                    f"native has() needs a map, got {mt}", e.line)
+            kt, vt = kv
+            kc, kct = self._expr(e.args[1], scope, sig)
+            self._check_assignable(kt, kct, e.line, "has() key")
+            return (f"sy_mhas_{_KEY[kt][0]}_{_ELEM[vt][0]}({mc}, {kc})", "bool")
         if len(e.args) != 1:
             raise NativeUnsupported(
                 f"{name}() expects 1 argument in native mode", e.line)
@@ -751,8 +921,11 @@ class CBackend:
                 return (f"((long long)strlen({ac}))", "int")
             if _list_base(at) is not None:
                 return (f"({ac}->len)", "int")
+            if _map_kv(at) is not None:
+                return (f"({ac}->len)", "int")
             raise NativeUnsupported(
-                f"native len() supports strings and lists, got {at}", e.line)
+                f"native len() supports strings, lists and maps, got {at}",
+                e.line)
         # str(x): convert a scalar to its Sandy string form
         if at == "string":
             return (ac, "string")
@@ -815,10 +988,17 @@ class CBackend:
             params = ", ".join(self._cty(t) for t in sig.ptypes) or "void"
             ret_c = self._cty(sig.ret) if sig.ret else "void"
             protos.append(f"{ret_c} {name}({params});")
-        # List runtimes must precede everything that uses their structs.
+        # List/map runtimes must precede everything that uses their structs.
         list_rt = "".join(_list_runtime(et)
                           for et in ("int", "float", "string", "bool")
                           if et in self.lists_needed)
+        key_rt = "".join(_map_key_helpers(kt)
+                         for kt in ("string", "int")
+                         if any(k == kt for k, _ in self.maps_needed))
+        map_rt = "".join(_map_runtime(kt, vt)
+                         for kt in ("string", "int")
+                         for vt in ("int", "float", "string", "bool")
+                         if (kt, vt) in self.maps_needed)
         parts = [
             "#include <stdio.h>",
             "#include <math.h>",
@@ -827,6 +1007,8 @@ class CBackend:
             "#include <ctype.h>",
             _HELPERS,
             list_rt,
+            key_rt,
+            map_rt,
             "\n".join(protos),
             "",
             "\n\n".join(sections),

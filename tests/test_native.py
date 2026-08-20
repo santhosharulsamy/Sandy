@@ -75,13 +75,23 @@ SUPPORTED = [
     'print(a)\nprint(len(a))\nprint(a[-1])\nprint(total(a))\n'
     'sq: list<int> = []\nfor i in range(5) { push(sq, i * i) }\nprint(sq)\n'
     'ws: list<string> = ["z", "a"]\nprint(ws)\nprint(ws[1])',
+    # typed maps: literals, get, set, has, len, missing-key default
+    'fn get(m: map<string, int>, k: string) -> int {\n'
+    ' if has(m, k) { return m[k] }\n return -1 }\n'
+    'm: map<string, int> = {"a": 1, "b": 2}\nm["c"] = 3\nm["a"] = 10\n'
+    'print(m["a"])\nprint(m["c"])\nprint(len(m))\nprint(has(m, "z"))\n'
+    'print(get(m, "b"))\nprint(get(m, "zz"))\n'
+    'freq: map<int, int> = {}\nfor i in range(7) { k: int = i % 3\n'
+    ' if has(freq, k) { freq[k] = freq[k] + 1 } else { freq[k] = 1 } }\n'
+    'print(freq[0])\nprint(freq[1])\nprint(freq[2])',
 ]
 
 # Programs the native backend must reject with a clear error.
 UNSUPPORTED = [
     'a = [1, "two", 3]',                  # heterogeneous list literal
     'a = [[1, 2], [3]]',                  # nested lists (element not scalar)
-    'm = {"a": 1}',                       # maps
+    'm = {"a": 1, "b": "x"}',             # heterogeneous map values
+    'm: map<string, int> = {"a": 1}\nprint(m)',  # printing a map
     'fn f(x) { return x + 1 }\nprint(f(1))',  # untyped params
     'print(keys({}))',                    # unsupported builtin
     'x = [1]\nprint(x.push(2))',          # unsupported (list) method

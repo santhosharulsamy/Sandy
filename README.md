@@ -231,18 +231,20 @@ The native backend handles Sandy's **typed core**:
 - **typed lists** `list<int>` / `list<float>` / `list<string>` — literals,
   indexing, `push`, index-assignment, `for`-iteration, printing — compiled to
   unboxed growable C arrays (no boxing, no runtime type dispatch)
+- **typed maps** `map<K,V>` (`K` int/string) — literals, get, set, `has`,
+  `len` — compiled to an unboxed open-addressing hash table
 - functions, recursion, loops, conditionals
 
 Compiled this way, typed code runs at native (C) speed: `fib(35)` takes about
 **0.02s** as a compiled binary versus roughly **96s** on the VM, and list
 operations run ~**100×** faster per element than the VM. Features outside this
-core (maps, closures, dynamic `any`) are reported clearly — run those with
-`sandy run` or `sandy --vm` instead. A C compiler (`cc`, `gcc`, or `clang`) is
-required.
+core (closures, dynamic `any`, map printing/iteration) are reported clearly —
+run those with `sandy run` or `sandy --vm` instead. A C compiler (`cc`, `gcc`,
+or `clang`) is required.
 
-Native strings and lists are heap-allocated and not yet garbage-collected,
-which is fine for short-lived programs but not long-running ones — a GC is on
-the roadmap.
+Native strings, lists and maps are heap-allocated and not yet garbage-
+collected, which is fine for short-lived programs but not long-running ones —
+a GC is on the roadmap.
 
 ### Functions
 
