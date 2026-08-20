@@ -115,10 +115,10 @@ Turn Sandy into real machine code and single-file binaries.
       for-iteration, printing. ~100× faster per element than the VM. Stays on
       the "typed = fast" thesis — no boxing, no runtime type dispatch.
 - [x] Native **typed maps** `map<K,V>` (K int/string, V scalar) as an unboxed
-      open-addressing hash table: literals, get, set, `has`, `len`, with
-      growth/rehash. (Map printing and iteration still VM-only.)
-- [ ] Native map printing/iteration (needs insertion-order tracking to match
-      the interpreter), heterogeneous/dynamic lists (a tagged-value runtime)
+      open-addressing hash table: literals, get, set, `has`, `len`, `keys`,
+      `values`, for-iteration and printing — with growth/rehash and
+      insertion-order tracking so output/iteration match the interpreter.
+- [ ] Heterogeneous/dynamic lists and maps (a tagged-value runtime)
 - [ ] Garbage collection (native strings/lists/maps currently leak — fine for
       short programs, not for long-running ones)
 - [ ] Dynamic `any` values, closures

@@ -10,8 +10,10 @@ where types make native code generation sound and worthwhile:
       literals, indexing, index-assignment, len(), push(), for-iteration,
       and printing — compiled to unboxed growable C arrays (no tagging)
     * homogeneous typed maps map<K,V> (K int/string, V scalar): literals,
-      indexing (get), index-assignment (set), has(), len() — compiled to an
-      unboxed open-addressing hash table (map printing/iteration not yet)
+      indexing (get), index-assignment (set), has(), len(), keys(), values(),
+      for-iteration (over keys), and printing — an unboxed open-addressing
+      hash table that also tracks insertion order so output/iteration match
+      the interpreter
     * functions with typed parameters and a return type, incl. recursion
     * arithmetic, comparisons, and/or/not, unary minus
     * strings: concatenation (+), repetition (*), ordering, len(), str(),
@@ -48,7 +50,7 @@ _ZERO = {"int": "0", "float": "0.0", "bool": "0", "string": '""'}
 _NUM = ("int", "float")
 
 # Global builtins the native backend understands.
-_NATIVE_BUILTINS = {"len", "str", "push", "has"}
+_NATIVE_BUILTINS = {"len", "str", "push", "has", "keys", "values"}
 
 # String methods -> (C helper, result type).
 _STRING_METHODS = {
@@ -266,30 +268,36 @@ def _map_runtime(kt, vt):
         notfound = ('fprintf(stderr, "RuntimeError (line %d): key %lld not '
                     'found in map\\n", line, k);')
     return f"""
-typedef struct {{ {kc}* keys; {vc}* vals; char* used; long long cap, len; }} {mt};
+typedef struct {{ {kc}* keys; {vc}* vals; char* used; {kc}* order;
+                  long long cap, len, ocap; }} {mt};
 static {mt}* sy_mnew_{ks}_{vs}(void) {{
     {mt}* m = ({mt}*)malloc(sizeof({mt}));
-    m->cap = 8; m->len = 0;
+    m->cap = 8; m->len = 0; m->ocap = 0; m->order = NULL;
     m->keys = ({kc}*)calloc(8, sizeof({kc}));
     m->vals = ({vc}*)malloc(8 * sizeof({vc}));
     m->used = (char*)calloc(8, 1);
     return m;
 }}
-static void sy_mput_{ks}_{vs}({mt}* m, {kc} k, {vc} v);
-static void sy_mgrow_{ks}_{vs}({mt}* m) {{
+static void sy_mgrow_{ks}_{vs}({mt}* m) {{  /* rehash slots; keep len and order */
     long long oc = m->cap; {kc}* ok = m->keys; {vc}* ov = m->vals; char* ou = m->used;
-    m->cap = oc * 2; m->len = 0;
+    m->cap = oc * 2;
     m->keys = ({kc}*)calloc((size_t)m->cap, sizeof({kc}));
     m->vals = ({vc}*)malloc((size_t)m->cap * sizeof({vc}));
     m->used = (char*)calloc((size_t)m->cap, 1);
-    for (long long i = 0; i < oc; i++) if (ou[i]) sy_mput_{ks}_{vs}(m, ok[i], ov[i]);
+    for (long long i = 0; i < oc; i++) if (ou[i]) {{
+        unsigned long h = sy_hash_{ks}(ok[i]) & (unsigned long)(m->cap - 1);
+        while (m->used[h]) h = (h + 1) & (unsigned long)(m->cap - 1);
+        m->used[h] = 1; m->keys[h] = ok[i]; m->vals[h] = ov[i];
+    }}
     free(ok); free(ov); free(ou);
 }}
 static void sy_mput_{ks}_{vs}({mt}* m, {kc} k, {vc} v) {{
     if ((m->len + 1) * 10 >= m->cap * 7) sy_mgrow_{ks}_{vs}(m);
     unsigned long h = sy_hash_{ks}(k) & (unsigned long)(m->cap - 1);
     while (m->used[h]) {{ if (sy_keq_{ks}(m->keys[h], k)) {{ m->vals[h] = v; return; }} h = (h + 1) & (unsigned long)(m->cap - 1); }}
-    m->used[h] = 1; m->keys[h] = k; m->vals[h] = v; m->len++;
+    m->used[h] = 1; m->keys[h] = k; m->vals[h] = v;
+    if (m->len == m->ocap) {{ m->ocap = m->ocap ? m->ocap * 2 : 8; m->order = ({kc}*)realloc(m->order, (size_t)m->ocap * sizeof({kc})); }}
+    m->order[m->len] = k; m->len++;
 }}
 static {vc} sy_mget_{ks}_{vs}({mt}* m, {kc} k, int line) {{
     unsigned long h = sy_hash_{ks}(k) & (unsigned long)(m->cap - 1);
@@ -573,10 +581,14 @@ class CBackend:
             return "int"
         _, itt = self._expr(it, scope, sig)
         et = _list_base(itt)
-        if et is None:
-            raise NativeUnsupported(
-                "native for-loops iterate over range(...) or a list", s.line)
-        return et
+        if et is not None:
+            return et
+        kv = _map_kv(itt)
+        if kv is not None:
+            return kv[0]  # iterating a map yields its keys
+        raise NativeUnsupported(
+            "native for-loops iterate over range(...), a list, or a map",
+            s.line)
 
     def _emit_for(self, s, scope, sig, indent):
         ind = "    " * indent
@@ -616,15 +628,27 @@ class CBackend:
         ind = "    " * indent
         code, itt = self._expr(s.iterable, scope, sig)
         et = _list_base(itt)
-        if et is None:
-            raise NativeUnsupported(
-                "native for-loops iterate over range(...) or a list", s.line)
-        sfx = _ELEM[et][0]
-        lst, i = self._newtmp(), self._newtmp()
+        if et is not None:
+            sfx = _ELEM[et][0]
+            lst, i = self._newtmp(), self._newtmp()
+            elem = f"{lst}->data[{i}]"
+            head = f"SyList_{sfx}* {lst} = {code};"
+            length = f"{lst}->len"
+        else:
+            kv = _map_kv(itt)
+            if kv is None:
+                raise NativeUnsupported(
+                    "native for-loops iterate over range(...), a list, or a "
+                    "map", s.line)
+            ks, vs = _KEY[kv[0]][0], _ELEM[kv[1]][0]
+            m, i = self._newtmp(), self._newtmp()
+            elem = f"{m}->order[{i}]"    # iterating a map yields its keys
+            head = f"SyMap_{ks}_{vs}* {m} = {code};"
+            length = f"{m}->len"
         lines = [
-            f"{ind}{{ SyList_{sfx}* {lst} = {code};",
-            f"{ind}for (long long {i} = 0; {i} < {lst}->len; {i}++) {{",
-            f"{ind}    {s.var} = {lst}->data[{i}];",
+            f"{ind}{{ {head}",
+            f"{ind}for (long long {i} = 0; {i} < {length}; {i}++) {{",
+            f"{ind}    {s.var} = {elem};",
         ]
         lines += self._emit_block(s.body, scope, sig, indent + 1)
         lines.append(f"{ind}}} }}")
@@ -662,22 +686,29 @@ class CBackend:
             return [f"{ind}fputs({code}, stdout);"]
         if _list_base(t) is not None:
             return self._emit_list_print(code, t, ind)
+        if _map_kv(t) is not None:
+            return self._emit_map_print(code, t, ind)
         raise NativeUnsupported(f"cannot print a {t} value in native mode",
                                 getattr(expr, "line", None))
+
+    def _scalar_repr(self, code, typ):
+        """A C statement that prints `code` in the interpreter's `to_repr`
+        form (strings quoted) — used inside list/map output."""
+        if typ == "int":
+            return f'printf("%lld", (long long)({code}));'
+        if typ == "float":
+            return f"sy_pf({code});"
+        if typ == "bool":
+            return f'fputs(({code}) ? "true" : "false", stdout);'
+        if typ == "string":
+            return f"sy_prepr({code});"
+        raise NativeUnsupported(f"cannot format a {typ} value natively", None)
 
     def _emit_list_print(self, code, t, ind):
         et = _list_base(t)
         sfx = _ELEM[et][0]
         lst, i = self._newtmp(), self._newtmp()
-        elem = f"{lst}->data[{i}]"
-        if et == "int":
-            show = f'printf("%lld", (long long)({elem}));'
-        elif et == "float":
-            show = f"sy_pf({elem});"
-        elif et == "bool":
-            show = f'fputs(({elem}) ? "true" : "false", stdout);'
-        else:  # string -> quoted, like the interpreter's list formatting
-            show = f"sy_prepr({elem});"
+        show = self._scalar_repr(f"{lst}->data[{i}]", et)
         return [
             f"{ind}{{ SyList_{sfx}* {lst} = {code};",
             f'{ind}fputs("[", stdout);',
@@ -686,6 +717,26 @@ class CBackend:
             f"{ind}    {show}",
             f"{ind}}}",
             f'{ind}fputs("]", stdout);',
+            f"{ind}}}",
+        ]
+
+    def _emit_map_print(self, code, t, ind):
+        kt, vt = _map_kv(t)
+        ks, vs = _KEY[kt][0], _ELEM[vt][0]
+        m, i = self._newtmp(), self._newtmp()
+        key = f"{m}->order[{i}]"
+        show_k = self._scalar_repr(key, kt)
+        show_v = self._scalar_repr(f"sy_mget_{ks}_{vs}({m}, {key}, 0)", vt)
+        return [
+            f"{ind}{{ SyMap_{ks}_{vs}* {m} = {code};",
+            f'{ind}fputs("{{", stdout);',
+            f"{ind}for (long long {i} = 0; {i} < {m}->len; {i}++) {{",
+            f'{ind}    if ({i}) fputs(", ", stdout);',
+            f"{ind}    {show_k}",
+            f'{ind}    fputs(": ", stdout);',
+            f"{ind}    {show_v}",
+            f"{ind}}}",
+            f'{ind}fputs("}}", stdout);',
             f"{ind}}}",
         ]
 
@@ -912,6 +963,27 @@ class CBackend:
             kc, kct = self._expr(e.args[1], scope, sig)
             self._check_assignable(kt, kct, e.line, "has() key")
             return (f"sy_mhas_{_KEY[kt][0]}_{_ELEM[vt][0]}({mc}, {kc})", "bool")
+        if name in ("keys", "values"):
+            if len(e.args) != 1:
+                raise NativeUnsupported(f"{name}() expects 1 argument", e.line)
+            mc, mt = self._expr(e.args[0], scope, sig)
+            kv = _map_kv(mt)
+            if kv is None:
+                raise NativeUnsupported(
+                    f"native {name}() needs a map, got {mt}", e.line)
+            kt, vt = kv
+            ks, vs = _KEY[kt][0], _ELEM[vt][0]
+            et = kt if name == "keys" else vt
+            esfx = _ELEM[et][0]
+            self.lists_needed.add(et)
+            m, i, lst = self._newtmp(), self._newtmp(), self._newtmp()
+            item = (f"{m}->order[{i}]" if name == "keys"
+                    else f"sy_mget_{ks}_{vs}({m}, {m}->order[{i}], 0)")
+            code = (f"({{ SyMap_{ks}_{vs}* {m} = {mc}; "
+                    f"SyList_{esfx}* {lst} = sy_lnew_{esfx}(); "
+                    f"for (long long {i} = 0; {i} < {m}->len; {i}++) "
+                    f"sy_lpush_{esfx}({lst}, {item}); {lst}; }})")
+            return (code, f"list<{et}>")
         if len(e.args) != 1:
             raise NativeUnsupported(
                 f"{name}() expects 1 argument in native mode", e.line)

@@ -84,6 +84,12 @@ SUPPORTED = [
     'freq: map<int, int> = {}\nfor i in range(7) { k: int = i % 3\n'
     ' if has(freq, k) { freq[k] = freq[k] + 1 } else { freq[k] = 1 } }\n'
     'print(freq[0])\nprint(freq[1])\nprint(freq[2])',
+    # map printing, iteration, keys()/values() — insertion order preserved
+    'm: map<string, int> = {"a": 1, "b": 2, "c": 3}\nm["d"] = 4\nprint(m)\n'
+    't: int = 0\nfor k in m { t += m[k] }\nprint(t)\n'
+    'print(keys(m))\nprint(values(m))\n'
+    'nums: map<int, string> = {1: "one", 2: "two"}\nprint(nums)\n'
+    'for n in keys(nums) { print(nums[n]) }',
 ]
 
 # Programs the native backend must reject with a clear error.
@@ -91,7 +97,7 @@ UNSUPPORTED = [
     'a = [1, "two", 3]',                  # heterogeneous list literal
     'a = [[1, 2], [3]]',                  # nested lists (element not scalar)
     'm = {"a": 1, "b": "x"}',             # heterogeneous map values
-    'm: map<string, int> = {"a": 1}\nprint(m)',  # printing a map
+    'm: map<bool, int> = {}',             # bool keys not supported natively
     'fn f(x) { return x + 1 }\nprint(f(1))',  # untyped params
     'print(keys({}))',                    # unsupported builtin
     'x = [1]\nprint(x.push(2))',          # unsupported (list) method
