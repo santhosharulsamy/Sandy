@@ -340,11 +340,14 @@ broken.sy: RuntimeError (line 3): undefined variable 'total'
 
 ## Roadmap
 
-Sandy 0.1 is a complete, working interpreter. Natural next steps:
+Sandy 0.1 is a complete, working interpreter — the foundation. The aim from
+here is bold: to make Sandy the best language *in its lane* — as easy as
+Python, but compiled to fast native code, safe where it counts, and a joy to
+use.
 
-- More iteration helpers (`map`, `filter`, `enumerate`)
-- Modules / `import`
-- A bytecode compiler + VM for extra speed
+That's a staged plan, not a slogan. See **[ROADMAP.md](ROADMAP.md)** for the
+full four-lane plan (Fast ⚡ / Easy 🎈 / Safe 🛡️ / Lovable 💛) and milestones.
+Next up: a bytecode compiler + VM — the first real speed jump.
 
 Contributions and ideas welcome.
 

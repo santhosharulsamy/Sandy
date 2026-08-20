@@ -6,6 +6,7 @@ from .values import (
     Function, BuiltinFunction, is_truthy, type_name, to_str,
 )
 from .builtins import make_builtins
+from .suggest import closest_name
 
 
 # -- control-flow signals (not user errors) --
@@ -35,7 +36,19 @@ class Environment:
             if name in env.vars:
                 return env.vars[name]
             env = env.parent
-        raise RuntimeErrorSandy(f"undefined variable '{name}'", line)
+        msg = f"undefined variable '{name}'"
+        guess = closest_name(name, self._all_names())
+        if guess is not None:
+            msg += f" (did you mean '{guess}'?)"
+        raise RuntimeErrorSandy(msg, line)
+
+    def _all_names(self):
+        names = set()
+        env = self
+        while env is not None:
+            names.update(env.vars.keys())
+            env = env.parent
+        return names
 
     def assign(self, name, value):
         # Update the nearest existing binding; otherwise define here.

@@ -185,6 +185,14 @@ class TestErrors(unittest.TestCase):
         with self.assertRaises(RuntimeErrorSandy):
             run("a = [1]\nprint(a[5])")
 
+    def test_did_you_mean_suggestion(self):
+        try:
+            run("message = 1\nprint(mesage)")
+        except RuntimeErrorSandy as e:
+            self.assertIn("did you mean 'message'", e.message)
+        else:
+            self.fail("expected RuntimeErrorSandy")
+
     def test_parse_error(self):
         with self.assertRaises(ParseError):
             run("fn (")
