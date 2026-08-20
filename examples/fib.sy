@@ -1,0 +1,30 @@
+# Fibonacci numbers, two ways.
+
+# Recursive version.
+fn fib(n) {
+    if n < 2 {
+        return n
+    }
+    return fib(n - 1) + fib(n - 2)
+}
+
+print("Recursive fib(10) = " + str(fib(10)))
+
+# Fast iterative version.
+fn fib_fast(n) {
+    a = 0
+    b = 1
+    for i in range(n) {
+        next = a + b
+        a = b
+        b = next
+    }
+    return a
+}
+
+print("First 10 Fibonacci numbers:")
+nums = []
+for i in range(10) {
+    push(nums, fib_fast(i))
+}
+print(nums)

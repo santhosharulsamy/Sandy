@@ -1,0 +1,26 @@
+# Functions are values, and they close over their environment.
+
+fn make_counter() {
+    count = 0
+    fn tick() {
+        count = count + 1
+        return count
+    }
+    return tick
+}
+
+c = make_counter()
+print(c())   # 1
+print(c())   # 2
+print(c())   # 3
+
+# Passing functions around.
+fn apply_twice(f, x) {
+    return f(f(x))
+}
+
+fn double(n) {
+    return n * 2
+}
+
+print(apply_twice(double, 5))   # 20

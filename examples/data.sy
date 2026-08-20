@@ -1,0 +1,36 @@
+# Lists, maps, methods and higher-order functions in Sandy.
+
+# A list of maps.
+people = [
+    { "name": "Ada",   "age": 36 },
+    { "name": "Alan",  "age": 41 },
+    { "name": "Grace", "age": 29 },
+]
+
+print("Everyone:")
+for person in people {
+    print("  " + person["name"] + " is " + str(person["age"]))
+}
+
+# Method-style calls work on strings, lists and maps.
+name = "sandy"
+print(name.upper())               # SANDY
+print("a,b,c".split(","))         # ["a", "b", "c"]
+
+# Filter with a helper function.
+fn older_than(list, limit) {
+    out = []
+    for p in list {
+        if p["age"] > limit {
+            out.push(p["name"])
+        }
+    }
+    return out
+}
+
+print("Older than 30: " + join(older_than(people, 30), ", "))
+
+# Maps: keys, values, membership.
+scores = { "math": 90, "art": 78 }
+print("Subjects: " + join(scores.keys(), ", "))
+print("Has math? " + str(scores.has("math")))

@@ -1,0 +1,6 @@
+# The classic first program in Sandy.
+print("Hello, Sandy!")
+
+# Variables need no keyword — just assign.
+name = "world"
+print("Hello, " + name + "!")
