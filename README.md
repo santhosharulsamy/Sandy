@@ -1,5 +1,7 @@
 # Sandy 🏖️
 
+[![CI](https://github.com/santhosharulsamy/Sandy/actions/workflows/ci.yml/badge.svg)](https://github.com/santhosharulsamy/Sandy/actions/workflows/ci.yml)
+
 **Sandy** is a small, friendly scripting language — designed to be *easy to
 learn, easy to write, and fast enough to be useful*. If you like Python, you
 already know most of Sandy. Programs live in `.sy` files.
@@ -32,6 +34,10 @@ No installation needed — you just need Python 3.8+.
 python -m sandy examples/hello.sy
 # ...or with the launcher
 ./sandy.py examples/hello.sy
+
+# ...or install it and use the `sandy` command
+pip install -e .
+sandy examples/hello.sy
 
 # Run on the experimental bytecode VM (faster engine)
 python -m sandy --vm examples/fib.sy
