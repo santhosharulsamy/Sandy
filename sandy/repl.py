@@ -31,6 +31,10 @@ def repl():
             _run_and_echo(interp, program)
         except SandyError as e:
             print(e.format("Error"), file=sys.stderr)
+            # Point at the offending column when we know it (single line here).
+            if getattr(e, "col", None):
+                print("  " + line, file=sys.stderr)
+                print("  " + " " * (e.col - 1) + "^", file=sys.stderr)
 
 
 def _run_and_echo(interp, program):

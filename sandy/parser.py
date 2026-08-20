@@ -59,7 +59,7 @@ class Parser:
         if self._cur().type != type_:
             tok = self._cur()
             got = tok.value if tok.value is not None else tok.type
-            raise ParseError(f"expected {what}, got {got!r}", tok.line)
+            raise ParseError(f"expected {what}, got {got!r}", tok.line, tok.col)
         return self._advance()
 
     def _skip_newlines(self):
@@ -152,7 +152,7 @@ class Parser:
         got = tok.value if tok.value is not None else tok.type
         raise ParseError(
             f"expected a type name (int, float, string, bool, list, map, "
-            f"nil, any), got {got!r}", tok.line)
+            f"nil, any), got {got!r}", tok.line, tok.col)
 
     def _if_stmt(self):
         line = self._advance().line  # 'if'
@@ -328,7 +328,7 @@ class Parser:
         if t == T.LBRACE:
             return self._map_literal()
         got = tok.value if tok.value is not None else tok.type
-        raise ParseError(f"unexpected {got!r}", tok.line)
+        raise ParseError(f"unexpected {got!r}", tok.line, tok.col)
 
     def _interp_string(self, tok):
         """Build an InterpStr node from an FSTRING token, parsing each

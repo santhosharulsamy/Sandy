@@ -185,6 +185,25 @@ class TestErrors(unittest.TestCase):
         with self.assertRaises(RuntimeErrorSandy):
             run("a = [1]\nprint(a[5])")
 
+    def test_syntax_error_has_column(self):
+        # Column info lets the reporter draw a caret at the exact spot.
+        try:
+            run("x = 1 +* 2")
+        except ParseError as e:
+            self.assertEqual(e.line, 1)
+            self.assertEqual(e.col, 8)  # the stray '*'
+        else:
+            self.fail("expected ParseError")
+
+    def test_column_tracks_across_lines(self):
+        try:
+            run("a = 1\nb = )")
+        except ParseError as e:
+            self.assertEqual(e.line, 2)
+            self.assertEqual(e.col, 5)  # the ')' is column 5 on line 2
+        else:
+            self.fail("expected ParseError")
+
     def test_did_you_mean_suggestion(self):
         try:
             run("message = 1\nprint(mesage)")

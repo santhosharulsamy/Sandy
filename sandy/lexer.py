@@ -43,22 +43,26 @@ class Lexer:
         self.src = source
         self.pos = 0
         self.line = 1
+        self.line_start = 0   # index in src where the current line begins
+        self.tok_start = 0    # index where the token being scanned begins
         self.tokens = []
 
     def error(self, msg):
-        raise LexError(msg, self.line)
+        raise LexError(msg, self.line, self.pos - self.line_start + 1)
 
     def _peek(self, offset=0):
         i = self.pos + offset
         return self.src[i] if i < len(self.src) else ""
 
     def _add(self, type_, value):
-        self.tokens.append(Token(type_, value, self.line))
+        col = self.tok_start - self.line_start + 1
+        self.tokens.append(Token(type_, value, self.line, col))
 
     def tokenize(self):
         src = self.src
         n = len(src)
         while self.pos < n:
+            self.tok_start = self.pos
             c = src[self.pos]
 
             # Whitespace (not newline).
@@ -76,6 +80,7 @@ class Lexer:
                 self._add(TokenType.NEWLINE, "\n")
                 self.pos += 1
                 self.line += 1
+                self.line_start = self.pos
                 continue
 
             if c.isdigit() or (c == "." and self._peek(1).isdigit()):
@@ -92,6 +97,7 @@ class Lexer:
 
             self._operator()
 
+        self.tok_start = self.pos
         self._add(TokenType.NEWLINE, "\n")
         self._add(TokenType.EOF, None)
         return self._post_process()

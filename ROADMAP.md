@@ -58,7 +58,8 @@ The fastest wins, and they cost almost nothing. Do these first because they
 make Sandy pleasant even before it's fast.
 - [x] Friendly, line-numbered error messages
 - [x] "Did you mean …?" suggestions for typos
-- [ ] Carets that underline the exact spot of an error (needs column tracking)
+- [x] Carets that underline the exact spot of a syntax error (the lexer tracks
+      columns; errors render `^` under the offending token, in files and REPL)
 - [ ] Contextual hints ("strings are immutable — build a new one with +")
 - [ ] One-command install / single self-contained launcher
 - [ ] A fast, comfortable REPL (history, multi-line editing)

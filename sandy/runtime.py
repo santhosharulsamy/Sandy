@@ -120,16 +120,16 @@ def run_file(path, engine="walk", check_types=True):
         else:
             run_source(source, Interpreter(), filename=path)
     except LexError as e:
-        _report(e.format("SyntaxError"), path, e.line, source)
+        _report(e.format("SyntaxError"), path, e.line, source, e.col)
         return 1
     except ParseError as e:
-        _report(e.format("SyntaxError"), path, e.line, source)
+        _report(e.format("SyntaxError"), path, e.line, source, e.col)
         return 1
     except RuntimeErrorSandy as e:
-        _report(e.format("RuntimeError"), path, e.line, source)
+        _report(e.format("RuntimeError"), path, e.line, source, e.col)
         return 1
     except SandyError as e:
-        _report(e.format("Error"), path, e.line, source)
+        _report(e.format("Error"), path, e.line, source, e.col)
         return 1
     return 0
 
@@ -146,9 +146,12 @@ def _report_type_errors(errors, path, source):
             print(f"    {line} | {lines[line - 1].strip()}", file=sys.stderr)
 
 
-def _report(message, path, line, source):
+def _report(message, path, line, source, col=None):
     print(f"\n{path}: {message}", file=sys.stderr)
     if line is not None:
         lines = source.splitlines()
         if 1 <= line <= len(lines):
-            print(f"  {line} | {lines[line - 1]}", file=sys.stderr)
+            gutter = f"  {line} | "
+            print(f"{gutter}{lines[line - 1]}", file=sys.stderr)
+            if col is not None and col >= 1:
+                print(" " * (len(gutter) + col - 1) + "^", file=sys.stderr)

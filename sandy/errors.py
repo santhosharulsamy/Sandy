@@ -8,9 +8,10 @@ offending source line with a friendly message.
 class SandyError(Exception):
     """Base class for all Sandy errors (lexing, parsing, runtime)."""
 
-    def __init__(self, message, line=None):
+    def __init__(self, message, line=None, col=None):
         self.message = message
         self.line = line
+        self.col = col  # 1-based column, when known (enables a source caret)
         super().__init__(message)
 
     def format(self, kind):

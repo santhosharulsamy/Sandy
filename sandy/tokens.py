@@ -95,12 +95,13 @@ CONTINUATION_TYPES = {
 
 
 class Token:
-    __slots__ = ("type", "value", "line")
+    __slots__ = ("type", "value", "line", "col")
 
-    def __init__(self, type_, value, line):
+    def __init__(self, type_, value, line, col=1):
         self.type = type_
         self.value = value
         self.line = line
+        self.col = col
 
     def __repr__(self):
-        return f"Token({self.type}, {self.value!r}, line={self.line})"
+        return f"Token({self.type}, {self.value!r}, line={self.line}, col={self.col})"
