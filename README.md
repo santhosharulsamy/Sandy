@@ -33,6 +33,9 @@ python -m sandy examples/hello.sy
 # ...or with the launcher
 ./sandy.py examples/hello.sy
 
+# Run on the experimental bytecode VM (faster engine)
+python -m sandy --vm examples/fib.sy
+
 # Start the interactive REPL
 python -m sandy
 
@@ -52,6 +55,12 @@ Run the tests:
 
 ```bash
 python -m unittest discover -s tests
+```
+
+Benchmark the two engines (tree-walker vs bytecode VM):
+
+```bash
+python bench/bench.py
 ```
 
 ---
@@ -312,6 +321,9 @@ source (.sy)  ──▶  Lexer  ──▶  tokens  ──▶  Parser  ──▶ 
 | `sandy/interpreter.py` | Tree-walking evaluator, scopes, closures, control flow |
 | `sandy/values.py` | Runtime values and how they're displayed |
 | `sandy/builtins.py` | Built-in functions and type methods |
+| `sandy/bytecode.py` | Bytecode instruction set + code objects |
+| `sandy/compiler.py` | Compiles the AST to bytecode |
+| `sandy/vm.py` | Stack-based bytecode VM (the faster `--vm` engine) |
 | `sandy/runtime.py` | Glue: run a string or a file, report errors nicely |
 | `sandy/repl.py` | The interactive prompt |
 | `sandy/cli.py` | Command-line entry point |

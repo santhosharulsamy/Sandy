@@ -9,10 +9,8 @@ from .interpreter import Interpreter
 
 
 def run_source(source, interp=None, filename="<stdin>"):
-    """Lex, parse and evaluate Sandy source. Returns the interpreter used.
-
-    On a Sandy error, prints a friendly diagnostic and raises SandyError.
-    """
+    """Lex, parse and evaluate Sandy source with the tree-walking engine.
+    Returns the interpreter used. Raises SandyError on a Sandy error."""
     if interp is None:
         interp = Interpreter()
     tokens = tokenize(source)
@@ -21,7 +19,15 @@ def run_source(source, interp=None, filename="<stdin>"):
     return interp
 
 
-def run_file(path):
+def run_source_vm(source, out=None):
+    """Lex, parse, compile and execute Sandy source on the bytecode VM."""
+    from .compiler import compile_program
+    from .vm import VM
+    program = parse(tokenize(source))
+    VM(out=out).run(compile_program(program))
+
+
+def run_file(path, engine="walk"):
     try:
         with open(path, "r", encoding="utf-8") as f:
             source = f.read()
@@ -29,9 +35,11 @@ def run_file(path):
         print(f"sandy: cannot open {path}: {e.strerror}", file=sys.stderr)
         return 1
 
-    interp = Interpreter()
     try:
-        run_source(source, interp, filename=path)
+        if engine == "vm":
+            run_source_vm(source)
+        else:
+            run_source(source, Interpreter(), filename=path)
     except LexError as e:
         _report(e.format("SyntaxError"), path, e.line, source)
         return 1

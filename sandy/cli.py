@@ -21,6 +21,7 @@ usage:
   sandy                 start the interactive REPL
   sandy FILE.sy         run a Sandy program
   sandy run FILE.sy     run a Sandy program (explicit)
+  sandy --vm FILE.sy    run on the bytecode VM engine (experimental, faster)
   sandy --version       print the version
   sandy --help          show this help
 """
@@ -28,6 +29,15 @@ usage:
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+
+    # Optional engine flag, anywhere in the arguments.
+    engine = "walk"
+    if "--vm" in argv:
+        argv.remove("--vm")
+        engine = "vm"
+    if "--walk" in argv:
+        argv.remove("--walk")
+        engine = "walk"
 
     if not argv:
         repl()
@@ -44,10 +54,10 @@ def main(argv=None):
         if len(argv) < 2:
             print("sandy: 'run' needs a file argument", file=sys.stderr)
             return 2
-        return run_file(argv[1])
+        return run_file(argv[1], engine=engine)
 
     # Otherwise treat the first argument as a filename.
-    return run_file(first)
+    return run_file(first, engine=engine)
 
 
 if __name__ == "__main__":

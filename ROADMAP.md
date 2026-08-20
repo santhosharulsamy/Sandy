@@ -63,14 +63,19 @@ make Sandy pleasant even before it's fast.
 - [ ] One-command install / single self-contained launcher
 - [ ] A fast, comfortable REPL (history, multi-line editing)
 
-### Stage 2 — Bytecode compiler + VM ⚡ (the first real speed jump)
+### Stage 2 — Bytecode compiler + VM ⚡ (the first real speed jump) — *in progress*
 Replace tree-walking with a compile-to-bytecode + stack VM design (the same
 architecture CPython and Lua use).
-- [ ] Compile the AST to a flat bytecode instruction set
-- [ ] Stack-based VM executing that bytecode
-- [ ] Constant folding + simple peephole optimizations
-- [ ] **Benchmark harness** comparing against the v0.1 tree-walker
-- **Expected:** ~10–50× faster than today. Still interpreted, but real.
+- [x] Compile the AST to a flat bytecode instruction set (`sandy/bytecode.py`, `sandy/compiler.py`)
+- [x] Stack-based VM executing that bytecode (`sandy/vm.py`), run with `sandy --vm file.sy`
+- [x] Inlined fast paths for arithmetic/comparison + frequency-ordered dispatch
+- [x] **Benchmark harness** comparing against the tree-walker (`bench/bench.py`)
+- [x] Equivalence tests: VM output matches the interpreter on every program
+- [ ] Constant folding + peephole optimizations
+- [ ] Local-variable slots (skip the name lookup on hot paths)
+- **Result so far (pure-Python VM):** ~1.5× faster overall, 1.7× on
+  recursion-heavy code. Bigger multipliers come from the local-slot work
+  above and, decisively, from Stages 3–4 (types + native compilation).
 
 ### Stage 3 — Gradual types 🛡️⚡ (safety *and* speed, together)
 Optional type annotations that you can add where you want them.

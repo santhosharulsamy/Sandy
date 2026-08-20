@@ -113,17 +113,19 @@ class Interpreter:
         return self._binary(op[0], current, value, line)
 
     def _exec_if(self, node, env):
+        # Sandy uses function-level scoping: blocks share the enclosing
+        # scope rather than creating a new one (like Python/JS locals).
         for cond, block in node.branches:
             if is_truthy(self._eval(cond, env)):
-                self._exec_block(block, Environment(env))
+                self._exec_block(block, env)
                 return
         if node.else_block is not None:
-            self._exec_block(node.else_block, Environment(env))
+            self._exec_block(node.else_block, env)
 
     def _exec_while(self, node, env):
         while is_truthy(self._eval(node.cond, env)):
             try:
-                self._exec_block(node.body, Environment(env))
+                self._exec_block(node.body, env)
             except _Break:
                 break
             except _Continue:
@@ -133,10 +135,9 @@ class Interpreter:
         iterable = self._eval(node.iterable, env)
         items = self._as_iterable(iterable, node.line)
         for item in items:
-            loop_env = Environment(env)
-            loop_env.define(node.var, item)
+            env.define(node.var, item)
             try:
-                self._exec_block(node.body, loop_env)
+                self._exec_block(node.body, env)
             except _Break:
                 break
             except _Continue:
