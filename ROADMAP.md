@@ -105,8 +105,13 @@ Turn Sandy into real machine code and single-file binaries.
       `--emit-c`); unsupported features are rejected with a clear message
 - [x] Semantics matched to the interpreter (float division, floor modulo,
       number formatting) and verified by compile-and-run tests
-- [ ] Extend the backend to lists/maps and strings (heap + a small runtime)
-- [ ] Dynamic `any` values, closures, garbage collection
+- [x] Native **strings**: concatenation, repetition, ordering, `len`, `str`,
+      and `.upper()/.lower()/.trim()/.length()` (heap-allocated; a small
+      string runtime in the generated C)
+- [ ] Native lists/maps (a tagged dynamic-value runtime)
+- [ ] Garbage collection (native strings currently leak — fine for short
+      programs, not for long-running ones)
+- [ ] Dynamic `any` values, closures
 - [ ] Consider an LLVM backend once the C route is fully proven
 - **Measured:** `fib(35)` runs in **~0.02s** as a native binary vs **~96s**
   on the VM — several thousand× faster. Typed numeric Sandy now runs at C

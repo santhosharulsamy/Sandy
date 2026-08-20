@@ -5,19 +5,25 @@ of Sandy (closures, dynamic `any`, lists/maps) is a large project; this
 backend deliberately handles the *statically typed scalar subset* — exactly
 where types make native code generation sound and worthwhile:
 
-    * types int, float, bool, string (string literals only)
+    * types int, float, bool, string
     * functions with typed parameters and a return type, incl. recursion
     * arithmetic, comparisons, and/or/not, unary minus
+    * strings: concatenation (+), repetition (*), ordering, len(), str(),
+      and the .upper()/.lower()/.trim()/.length() methods
     * if / elif / else, while, for i in range(...), break, continue, return
     * print(...) of scalars and interpolated strings
 
 Anything outside this subset raises NativeUnsupported with a clear message,
 pointing the user back to the `--vm` engine. The generated C is compiled with
-the system C compiler at -O2, so typed numeric programs run at native speed.
+the system C compiler at -O2, so typed programs run at native speed.
 
 Semantics are matched to the interpreter on purpose: `/` is always float,
-`%` is Python-style floor modulo, and floats print as the interpreter shows
-them (integral values as `N.0`).
+`%` is Python-style floor modulo, floats print as the interpreter shows them
+(integral values as `N.0`), and string ordering is lexicographic (strcmp).
+
+Strings are heap-allocated and, for now, never freed — fine for the
+short-lived programs this backend targets; a garbage collector is a later
+roadmap item. Lists and maps are not yet supported natively.
 """
 
 from .errors import SandyError
@@ -31,8 +37,19 @@ class NativeUnsupported(SandyError):
 
 C_TYPE = {"int": "long long", "float": "double", "bool": "int",
           "string": "const char*"}
-_ZERO = {"int": "0", "float": "0.0", "bool": "0", "string": "NULL"}
+_ZERO = {"int": "0", "float": "0.0", "bool": "0", "string": '""'}
 _NUM = ("int", "float")
+
+# Global builtins the native backend understands.
+_NATIVE_BUILTINS = {"len", "str"}
+
+# String methods -> (C helper, result type).
+_STRING_METHODS = {
+    "upper": ("sy_upper", "string"),
+    "lower": ("sy_lower", "string"),
+    "trim": ("sy_trim", "string"),
+    "length": ("sy_slen", "int"),
+}
 
 _HELPERS = r"""
 static long long sy_ipow(long long base, long long exp) {
@@ -61,6 +78,54 @@ static long long sy_ckz(long long b, int line) {
 static void sy_pf(double v) {
     if (v == (long long)v && v < 1e16 && v > -1e16) printf("%.1f", v);
     else printf("%g", v);
+}
+/* String runtime. Sandy strings are immutable; these helpers return freshly
+   heap-allocated buffers. Memory is not reclaimed yet (a garbage collector is
+   a later roadmap item), which is fine for the short-lived programs the native
+   backend currently targets. */
+static char* sy_concat(const char* a, const char* b) {
+    size_t la = strlen(a), lb = strlen(b);
+    char* r = (char*)malloc(la + lb + 1);
+    memcpy(r, a, la); memcpy(r + la, b, lb + 1);
+    return r;
+}
+static char* sy_repeat(const char* s, long long n) {
+    if (n < 0) n = 0;
+    size_t ls = strlen(s);
+    char* r = (char*)malloc(ls * (size_t)n + 1);
+    char* p = r;
+    for (long long i = 0; i < n; i++) { memcpy(p, s, ls); p += ls; }
+    *p = 0;
+    return r;
+}
+static char* sy_from_ll(long long v) {
+    char* r = (char*)malloc(24);
+    snprintf(r, 24, "%lld", v);
+    return r;
+}
+static char* sy_from_double(double v) {
+    char* r = (char*)malloc(32);
+    if (v == (long long)v && v < 1e16 && v > -1e16) snprintf(r, 32, "%.1f", v);
+    else snprintf(r, 32, "%g", v);
+    return r;
+}
+static long long sy_slen(const char* s) { return (long long)strlen(s); }
+static char* sy_upper(const char* s) {
+    size_t n = strlen(s); char* r = (char*)malloc(n + 1);
+    for (size_t i = 0; i < n; i++) r[i] = (char)toupper((unsigned char)s[i]);
+    r[n] = 0; return r;
+}
+static char* sy_lower(const char* s) {
+    size_t n = strlen(s); char* r = (char*)malloc(n + 1);
+    for (size_t i = 0; i < n; i++) r[i] = (char)tolower((unsigned char)s[i]);
+    r[n] = 0; return r;
+}
+static char* sy_trim(const char* s) {
+    while (*s && isspace((unsigned char)*s)) s++;
+    size_t n = strlen(s);
+    while (n > 0 && isspace((unsigned char)s[n - 1])) n--;
+    char* r = (char*)malloc(n + 1);
+    memcpy(r, s, n); r[n] = 0; return r;
 }
 """
 
@@ -396,8 +461,17 @@ class CBackend:
             raise NativeUnsupported(
                 f"cannot compare {lt} and {rt} in native mode", line)
         if op in ("<", ">", "<=", ">="):
+            if lt == "string" and rt == "string":
+                return (f"(strcmp({lc}, {rc}) {op} 0)", "bool")
             self._need_num(lt, line, "compare"); self._need_num(rt, line, "compare")
             return (f"({lc} {op} {rc})", "bool")
+        # string concatenation and repetition
+        if op == "+" and lt == "string" and rt == "string":
+            return (f"sy_concat({lc}, {rc})", "string")
+        if op == "*" and lt == "string" and rt == "int":
+            return (f"sy_repeat({lc}, {rc})", "string")
+        if op == "*" and lt == "int" and rt == "string":
+            return (f"sy_repeat({rc}, {lc})", "string")
         # arithmetic
         self._need_num(lt, line, "use arithmetic on")
         self._need_num(rt, line, "use arithmetic on")
@@ -417,14 +491,19 @@ class CBackend:
         raise NativeUnsupported(f"operator '{op}' not supported natively", line)
 
     def _call(self, e, scope, sig, allow_void):
+        # Method call: s.upper(), s.lower(), s.trim(), s.length()
+        if isinstance(e.callee, N.Attribute):
+            return self._method_call(e, scope, sig)
         if not isinstance(e.callee, N.Identifier):
             raise NativeUnsupported(
                 "native calls must be to named functions", e.line)
         name = e.callee.name
+        if name in _NATIVE_BUILTINS:
+            return self._builtin_call(name, e, scope, sig)
         if name not in self.funcs:
             raise NativeUnsupported(
                 f"'{name}' cannot be called in native mode (only user "
-                f"functions are supported)", e.line)
+                f"functions and len/str are supported)", e.line)
         fn = self.funcs[name]
         if len(e.args) != len(fn.params):
             raise NativeUnsupported(
@@ -442,6 +521,45 @@ class CBackend:
                 f"{name}() returns nothing and cannot be used as a value",
                 e.line)
         return (f"{name}({', '.join(parts)})", fn.ret)
+
+    def _builtin_call(self, name, e, scope, sig):
+        if len(e.args) != 1:
+            raise NativeUnsupported(
+                f"{name}() expects 1 argument in native mode", e.line)
+        ac, at = self._expr(e.args[0], scope, sig)
+        if name == "len":
+            if at != "string":
+                raise NativeUnsupported(
+                    f"native len() only supports strings so far, got {at}",
+                    e.line)
+            return (f"((long long)strlen({ac}))", "int")
+        # str(x): convert a scalar to its Sandy string form
+        if at == "string":
+            return (ac, "string")
+        if at == "int":
+            return (f"sy_from_ll({ac})", "string")
+        if at == "float":
+            return (f"sy_from_double({ac})", "string")
+        if at == "bool":
+            return (f"(({ac}) ? \"true\" : \"false\")", "string")
+        raise NativeUnsupported(f"cannot str() a {at} in native mode", e.line)
+
+    def _method_call(self, e, scope, sig):
+        method = e.callee.name
+        if method not in _STRING_METHODS:
+            raise NativeUnsupported(
+                f"native mode supports string methods {sorted(_STRING_METHODS)}, "
+                f"not '.{method}()'", e.line)
+        tc, tt = self._expr(e.callee.target, scope, sig)
+        if tt != "string":
+            raise NativeUnsupported(
+                f"'.{method}()' is a string method, but the target is {tt}",
+                e.line)
+        if e.args:
+            raise NativeUnsupported(
+                f"native '.{method}()' takes no arguments", e.line)
+        helper, rtype = _STRING_METHODS[method]
+        return (f"{helper}({tc})", rtype)
 
     # -- helpers --
     def _bool(self, expr, scope, sig):
@@ -482,6 +600,7 @@ class CBackend:
             "#include <math.h>",
             "#include <string.h>",
             "#include <stdlib.h>",
+            "#include <ctype.h>",
             _HELPERS,
             "\n".join(protos),
             "",

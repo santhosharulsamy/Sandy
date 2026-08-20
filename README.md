@@ -223,12 +223,16 @@ sandy build program.sy --emit-c # also keep the generated C
 ```
 
 The native backend handles Sandy's **typed scalar core** — `int`, `float`,
-`bool`, `string`, with functions, recursion, loops and conditionals. Typed
-numeric code compiled this way runs at native (C) speed: `fib(35)` takes about
-**0.02s** as a compiled binary versus roughly **96s** on the VM. Features
-outside the scalar core (lists, maps, closures, dynamic `any`) are reported
-clearly — run those with `sandy run` or `sandy --vm` instead. A C compiler
-(`cc`, `gcc`, or `clang`) is required.
+`bool`, and `string` (with concatenation, repetition, ordering, `len`, `str`,
+and the `.upper()/.lower()/.trim()/.length()` methods), plus functions,
+recursion, loops and conditionals. Typed numeric code compiled this way runs
+at native (C) speed: `fib(35)` takes about **0.02s** as a compiled binary
+versus roughly **96s** on the VM. Features outside this core (lists, maps,
+closures, dynamic `any`) are reported clearly — run those with `sandy run` or
+`sandy --vm` instead. A C compiler (`cc`, `gcc`, or `clang`) is required.
+
+Native strings are heap-allocated and not yet garbage-collected, which is fine
+for short-lived programs but not long-running ones — a GC is on the roadmap.
 
 ### Functions
 

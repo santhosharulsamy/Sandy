@@ -31,6 +31,12 @@ for k in range(2, 100) {
     if is_prime(k) { count += 1 }
 }
 
+fn banner(title: string) -> string {
+    return "== " + title.upper() + " =="
+}
+
+print(banner("results"))
 print("fib(30) = {fib(30)}")
 print("primes under 100 = {count}")
 print("average(7, 10) = {average(7, 10)}")
+print("-" * 20)

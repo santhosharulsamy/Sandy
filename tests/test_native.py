@@ -61,6 +61,13 @@ SUPPORTED = [
     'name: string = "Sandy"\nprint("hello {name}, {3 * 4}")\n'
     'x: float = 5.0\nx /= 2\nprint(x)\n'
     'for i in range(3, 0, -1) { print(i) }',
+    # string operations: concat, repeat, methods, len, str, comparison
+    'fn tag(s: string) -> string { return "[" + s.upper() + "]" }\n'
+    'g: string = "hi" + " " + "there"\n'
+    'print(tag(g))\nprint(g)\nprint(len(g))\nprint("ab" * 4)\n'
+    'print("  pad  ".trim())\nprint("ZZZ".lower())\n'
+    'print("apple" < "banana")\nprint("n = " + str(21 * 2))\n'
+    'print("f = " + str(1.5))\nprint("b = " + str(3 > 1))',
 ]
 
 # Programs the native backend must reject with a clear error.
@@ -68,8 +75,8 @@ UNSUPPORTED = [
     'a = [1, 2, 3]',                      # lists
     'm = {"a": 1}',                       # maps
     'fn f(x) { return x + 1 }\nprint(f(1))',  # untyped params
-    'print(len("hi"))',                   # unsupported builtin
-    'print("a" + "b")',                   # string concatenation
+    'print(keys({}))',                    # unsupported builtin
+    'x = [1]\nprint(x.push(2))',          # unsupported (list) method
     'fn outer() { fn inner() { return 1 }\n return inner }',  # nested funcs
 ]
 
@@ -88,9 +95,11 @@ class TestNativeMatchesInterpreter(unittest.TestCase):
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         with open(os.path.join(root, "examples", "native.sy")) as f:
             src = f.read()
-        expected = ("fib(30) = 832040\n"
+        expected = ("== RESULTS ==\n"
+                    "fib(30) = 832040\n"
                     "primes under 100 = 25\n"
-                    "average(7, 10) = 8.5\n")
+                    "average(7, 10) = 8.5\n"
+                    + "-" * 20 + "\n")
         self.assertEqual(compile_and_run(src), expected)
 
 
