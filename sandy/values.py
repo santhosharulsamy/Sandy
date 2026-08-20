@@ -15,13 +15,15 @@ Callable values are represented by Function / BuiltinFunction below.
 
 class Function:
     """A user-defined Sandy function (closure)."""
-    __slots__ = ("name", "params", "body", "closure")
+    __slots__ = ("name", "params", "body", "closure", "param_types")
 
-    def __init__(self, name, params, body, closure):
+    def __init__(self, name, params, body, closure, param_types=None):
         self.name = name
         self.params = params
         self.body = body
         self.closure = closure  # defining environment
+        # None means no annotations; otherwise aligned with params.
+        self.param_types = param_types if (param_types and any(param_types)) else None
 
     def __repr__(self):
         return f"<fn {self.name}({', '.join(self.params)})>"

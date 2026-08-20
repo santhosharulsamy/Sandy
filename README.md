@@ -205,6 +205,10 @@ sandy check program.sy      # type-check without running
 sandy --no-check program.sy # run without the type checker
 ```
 
+Types also feed the compiler: on the `--vm` engine, code the compiler can
+prove is numeric is compiled to specialized numeric opcodes, so typed numeric
+functions run faster than untyped ones (see `bench/bench.py`).
+
 ### Functions
 
 Functions are first-class values. They can be passed around, returned, and

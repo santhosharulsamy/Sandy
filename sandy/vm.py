@@ -22,11 +22,12 @@ _SENTINEL = object()
 
 
 class VMFunction:
-    __slots__ = ("name", "params", "code", "closure")
+    __slots__ = ("name", "params", "param_types", "code", "closure")
 
     def __init__(self, name, params, code, closure):
         self.name = name
         self.params = params
+        self.param_types = code.param_types
         self.code = code
         self.closure = closure
 
@@ -105,7 +106,21 @@ class VM:
                 elif op == B.DEFINE_NAME:
                     env.vars[arg] = stack.pop()
 
-                # --- hot arithmetic / comparison ---
+                # --- hot arithmetic / comparison (specialized + generic) ---
+                # The specialized *_NUM ops are emitted when the compiler has
+                # proven both operands numeric, so the common path skips type
+                # dispatch. They stay sound under gradual typing via a cheap
+                # guard: CPython 3.11 exception tables make the try free when
+                # no error occurs, and any surprise value falls back to the
+                # fully-checked operator (raising the proper Sandy error). Each
+                # *_NUM sits next to its generic twin to keep dispatch short
+                # for both typed and untyped code.
+                elif op == B.BINARY_ADD_NUM:
+                    b = stack.pop()
+                    try:
+                        stack[-1] = stack[-1] + b
+                    except TypeError:
+                        stack[-1] = _binary("+", stack[-1], b, lines[ip - 1])
                 elif op == B.BINARY_ADD:
                     b = stack.pop(); a = stack.pop()
                     ta = type(a); tb = type(b)
@@ -113,6 +128,12 @@ class VM:
                         push(a + b)
                     else:
                         push(_binary("+", a, b, lines[ip - 1]))
+                elif op == B.CMP_LT_NUM:
+                    b = stack.pop()
+                    try:
+                        stack[-1] = stack[-1] < b
+                    except TypeError:
+                        stack[-1] = _binary("<", stack[-1], b, lines[ip - 1])
                 elif op == B.CMP_LT:
                     b = stack.pop(); a = stack.pop()
                     ta = type(a); tb = type(b)
@@ -120,6 +141,12 @@ class VM:
                         push(a < b)
                     else:
                         push(_binary("<", a, b, lines[ip - 1]))
+                elif op == B.BINARY_SUB_NUM:
+                    b = stack.pop()
+                    try:
+                        stack[-1] = stack[-1] - b
+                    except TypeError:
+                        stack[-1] = _binary("-", stack[-1], b, lines[ip - 1])
                 elif op == B.BINARY_SUB:
                     b = stack.pop(); a = stack.pop()
                     ta = type(a); tb = type(b)
@@ -171,6 +198,12 @@ class VM:
                 elif op == B.CMP_EQ:
                     b = stack.pop(); a = stack.pop()
                     push(rt._equals(a, b))
+                elif op == B.CMP_GT_NUM:
+                    b = stack.pop()
+                    try:
+                        stack[-1] = stack[-1] > b
+                    except TypeError:
+                        stack[-1] = _binary(">", stack[-1], b, lines[ip - 1])
                 elif op == B.CMP_GT:
                     b = stack.pop(); a = stack.pop()
                     ta = type(a); tb = type(b)
@@ -181,6 +214,12 @@ class VM:
                 elif op == B.CMP_NE:
                     b = stack.pop(); a = stack.pop()
                     push(not rt._equals(a, b))
+                elif op == B.CMP_LE_NUM:
+                    b = stack.pop()
+                    try:
+                        stack[-1] = stack[-1] <= b
+                    except TypeError:
+                        stack[-1] = _binary("<=", stack[-1], b, lines[ip - 1])
                 elif op == B.CMP_LE:
                     b = stack.pop(); a = stack.pop()
                     ta = type(a); tb = type(b)
@@ -188,6 +227,12 @@ class VM:
                         push(a <= b)
                     else:
                         push(_binary("<=", a, b, lines[ip - 1]))
+                elif op == B.CMP_GE_NUM:
+                    b = stack.pop()
+                    try:
+                        stack[-1] = stack[-1] >= b
+                    except TypeError:
+                        stack[-1] = _binary(">=", stack[-1], b, lines[ip - 1])
                 elif op == B.CMP_GE:
                     b = stack.pop(); a = stack.pop()
                     ta = type(a); tb = type(b)
@@ -197,6 +242,12 @@ class VM:
                         push(_binary(">=", a, b, lines[ip - 1]))
 
                 # --- remaining arithmetic ---
+                elif op == B.BINARY_MUL_NUM:
+                    b = stack.pop()
+                    try:
+                        stack[-1] = stack[-1] * b
+                    except TypeError:
+                        stack[-1] = _binary("*", stack[-1], b, lines[ip - 1])
                 elif op == B.BINARY_MUL:
                     b = stack.pop(); a = stack.pop()
                     ta = type(a); tb = type(b)

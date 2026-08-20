@@ -15,10 +15,27 @@ class _Loop:
         self.break_sites = []            # indices of JUMP ops to patch to end
 
 
+# Arithmetic operators whose result is numeric when both operands are.
+_ARITH = {"+", "-", "*", "/", "%", "**"}
+
+# Generic op -> type-specialized (numeric) op.
+_NUMERIC_FAST = {
+    B.BINARY_ADD: B.BINARY_ADD_NUM,
+    B.BINARY_SUB: B.BINARY_SUB_NUM,
+    B.BINARY_MUL: B.BINARY_MUL_NUM,
+    B.CMP_LT: B.CMP_LT_NUM,
+    B.CMP_GT: B.CMP_GT_NUM,
+    B.CMP_LE: B.CMP_LE_NUM,
+    B.CMP_GE: B.CMP_GE_NUM,
+}
+
+
 class Compiler:
-    def __init__(self, name="<main>", params=()):
+    def __init__(self, name="<main>", params=(), param_types=None, numeric=None):
         self.name = name
         self.params = list(params)
+        self.param_types = list(param_types) if param_types is not None else [None] * len(params)
+        self.numeric = numeric or set()  # names proven to hold numbers
         self.ops = []
         self.lines = []
         self.consts = []
@@ -53,13 +70,39 @@ class Compiler:
 
     # -- public entry --
     def compile_program(self, block):
+        self.numeric = analyze_numeric([], [], block)
         self._compile_block(block)
         self._emit(B.LOAD_CONST, self._const(None), 0)
         self._emit(B.RETURN, None, 0)
         return self._code()
 
     def _code(self):
-        return B.CodeObject(self.name, self.params, self.ops, self.consts, self.lines)
+        # Drop the annotation list entirely when nothing is annotated, so
+        # untyped calls pay no boundary-check cost.
+        pts = self.param_types if any(t is not None for t in self.param_types) else None
+        return B.CodeObject(self.name, self.params, self.ops, self.consts,
+                            self.lines, pts)
+
+    def _numeric(self, node):
+        """True if `node` provably evaluates to a number (so a specialized
+        numeric opcode is safe)."""
+        t = type(node)
+        if t is N.IntLit or t is N.FloatLit:
+            return True
+        if t is N.Identifier:
+            return node.name in self.numeric
+        if t is N.BinaryOp:
+            return (node.op in _ARITH
+                    and self._numeric(node.left) and self._numeric(node.right))
+        if t is N.UnaryOp:
+            return node.op == "-" and self._numeric(node.operand)
+        return False
+
+    def _binary_opcode(self, op, left, right):
+        base = B.BINARY_OPS[op]
+        if self._numeric(left) and self._numeric(right):
+            return _NUMERIC_FAST.get(base, base)
+        return base
 
     def _compile_block(self, block):
         for stmt in block.statements:
@@ -85,7 +128,8 @@ class Compiler:
             else:
                 self._emit(B.LOAD_NAME, target.name, node.line)
                 self._compile_expr(node.value)
-                self._emit(B.BINARY_OPS[node.op[0]], None, node.line)
+                self._emit(self._binary_opcode(node.op[0], target, node.value),
+                           None, node.line)
             self._emit(B.STORE_NAME, target.name, node.line)
         elif isinstance(target, N.Index):
             if node.op == "=":
@@ -211,7 +255,8 @@ class Compiler:
     def _c_binary(self, node):
         self._compile_expr(node.left)
         self._compile_expr(node.right)
-        self._emit(B.BINARY_OPS[node.op], None, node.line)
+        self._emit(self._binary_opcode(node.op, node.left, node.right),
+                   None, node.line)
 
     def _c_unary(self, node):
         self._compile_expr(node.operand)
@@ -243,12 +288,75 @@ class Compiler:
 
 
 def _compile_function(node):
-    c = Compiler(node.name, node.params)
+    numeric = analyze_numeric(node.params, node.param_types, node.body)
+    c = Compiler(node.name, node.params, node.param_types, numeric)
     c._compile_block(node.body)
     # implicit `return nil` if control falls off the end
     c._emit(B.LOAD_CONST, c._const(None), node.line)
     c._emit(B.RETURN, None, node.line)
     return c._code()
+
+
+# ---- numeric-locals analysis (sound across loops via a fixpoint) ----
+
+def _numeric_under(node, names):
+    t = type(node)
+    if t is N.IntLit or t is N.FloatLit:
+        return True
+    if t is N.Identifier:
+        return node.name in names
+    if t is N.BinaryOp:
+        return (node.op in _ARITH
+                and _numeric_under(node.left, names)
+                and _numeric_under(node.right, names))
+    if t is N.UnaryOp:
+        return node.op == "-" and _numeric_under(node.operand, names)
+    return False
+
+
+def _collect_assigns(block, assigns, forvars):
+    """Gather identifier assignments and for-loop variables in a body,
+    without descending into nested function definitions (separate scope)."""
+    for stmt in block.statements:
+        t = type(stmt)
+        if t is N.Assign:
+            if isinstance(stmt.target, N.Identifier):
+                assigns.append(stmt)
+        elif t is N.If:
+            for _, b in stmt.branches:
+                _collect_assigns(b, assigns, forvars)
+            if stmt.else_block is not None:
+                _collect_assigns(stmt.else_block, assigns, forvars)
+        elif t is N.While:
+            _collect_assigns(stmt.body, assigns, forvars)
+        elif t is N.For:
+            forvars.add(stmt.var)
+            _collect_assigns(stmt.body, assigns, forvars)
+
+
+def analyze_numeric(params, param_types, body):
+    """Return the set of variable names that provably hold numbers at every
+    point in the scope. Params annotated int/float are numeric (their type is
+    enforced at the call boundary); a local is numeric only if *every*
+    assignment to it has a provably-numeric right-hand side. Computed as a
+    fixpoint so the result is valid across loop back-edges.
+    """
+    assigns = []
+    forvars = set()
+    _collect_assigns(body, assigns, forvars)
+    ptypes = param_types if param_types else [None] * len(params)
+    numeric_params = {p for p, ty in zip(params, ptypes) if ty in ("int", "float")}
+    assigned = {a.target.name for a in assigns}
+    names = (numeric_params | assigned) - forvars
+    changed = True
+    while changed:
+        changed = False
+        for a in assigns:
+            name = a.target.name
+            if name in names and not _numeric_under(a.value, names):
+                names.discard(name)
+                changed = True
+    return names
 
 
 Compiler._STMT = {

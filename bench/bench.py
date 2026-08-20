@@ -21,8 +21,15 @@ from sandy.vm import VM
 
 
 PROGRAMS = {
-    "fib(27) recursive": """
+    "fib(27) untyped": """
 fn fib(n) {
+    if n < 2 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+print(fib(27))
+""",
+    "fib(27) typed": """
+fn fib(n: int) -> int {
     if n < 2 { return n }
     return fib(n - 1) + fib(n - 2)
 }

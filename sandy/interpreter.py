@@ -144,7 +144,7 @@ class Interpreter:
                 continue
 
     def _exec_funcdef(self, node, env):
-        fn = Function(node.name, node.params, node.body, env)
+        fn = Function(node.name, node.params, node.body, env, node.param_types)
         env.define(node.name, fn)
 
     def _exec_return(self, node, env):

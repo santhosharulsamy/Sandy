@@ -24,12 +24,23 @@ BINARY_DIV = 13
 BINARY_MOD = 14
 BINARY_POW = 15
 
+# Type-specialized numeric ops: the compiler emits these only when it has
+# *proven* both operands are numbers, so they skip all runtime type checks.
+BINARY_ADD_NUM = 16
+BINARY_SUB_NUM = 17
+BINARY_MUL_NUM = 18
+
 CMP_EQ = 20
 CMP_NE = 21
 CMP_LT = 22
 CMP_GT = 23
 CMP_LE = 24
 CMP_GE = 25
+
+CMP_LT_NUM = 26
+CMP_GT_NUM = 27
+CMP_LE_NUM = 28
+CMP_GE_NUM = 29
 
 UNARY_NEG = 30
 UNARY_NOT = 31
@@ -64,11 +75,12 @@ BINARY_OPS = {
 
 class CodeObject:
     """A compiled chunk of Sandy code (a program or a function body)."""
-    __slots__ = ("name", "params", "ops", "consts", "lines")
+    __slots__ = ("name", "params", "param_types", "ops", "consts", "lines")
 
-    def __init__(self, name, params, ops, consts, lines):
+    def __init__(self, name, params, ops, consts, lines, param_types=None):
         self.name = name
         self.params = params
+        self.param_types = param_types  # None means no annotations (no checks)
         self.ops = ops        # list of (op, arg)
         self.consts = consts  # list of constant values (incl. nested CodeObjects)
         self.lines = lines    # parallel to ops
