@@ -137,7 +137,18 @@ class Parser:
         if tok.type == T.FN:
             self._advance(); return "fn"
         if tok.type == T.IDENT and tok.value in _TYPE_NAMES:
-            self._advance(); return tok.value
+            base = tok.value
+            self._advance()
+            # Parameterized types: list<T>, map<K, V>
+            if base in ("list", "map") and self._check(T.LT):
+                self._advance()  # '<'
+                args = [self._type_annotation()]
+                if base == "map":
+                    self._expect(T.COMMA, "',' between map key and value types")
+                    args.append(self._type_annotation())
+                self._expect(T.GT, "'>' to close the type parameters")
+                return f"{base}<{','.join(args)}>"
+            return base
         got = tok.value if tok.value is not None else tok.type
         raise ParseError(
             f"expected a type name (int, float, string, bool, list, map, "

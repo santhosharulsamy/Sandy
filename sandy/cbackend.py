@@ -6,12 +6,15 @@ backend deliberately handles the *statically typed scalar subset* — exactly
 where types make native code generation sound and worthwhile:
 
     * types int, float, bool, string
+    * homogeneous typed lists list<int>/list<float>/list<string>/list<bool>:
+      literals, indexing, index-assignment, len(), push(), for-iteration,
+      and printing — compiled to unboxed growable C arrays (no tagging)
     * functions with typed parameters and a return type, incl. recursion
     * arithmetic, comparisons, and/or/not, unary minus
     * strings: concatenation (+), repetition (*), ordering, len(), str(),
       and the .upper()/.lower()/.trim()/.length() methods
     * if / elif / else, while, for i in range(...), break, continue, return
-    * print(...) of scalars and interpolated strings
+    * print(...) of scalars, lists, and interpolated strings
 
 Anything outside this subset raises NativeUnsupported with a clear message,
 pointing the user back to the `--vm` engine. The generated C is compiled with
@@ -19,11 +22,12 @@ the system C compiler at -O2, so typed programs run at native speed.
 
 Semantics are matched to the interpreter on purpose: `/` is always float,
 `%` is Python-style floor modulo, floats print as the interpreter shows them
-(integral values as `N.0`), and string ordering is lexicographic (strcmp).
+(integral values as `N.0`), string ordering is lexicographic (strcmp), and
+lists print as `[a, b, c]` with strings quoted.
 
-Strings are heap-allocated and, for now, never freed — fine for the
+Strings and lists are heap-allocated and, for now, never freed — fine for the
 short-lived programs this backend targets; a garbage collector is a later
-roadmap item. Lists and maps are not yet supported natively.
+roadmap item. Maps and dynamic `any` are not yet supported natively.
 """
 
 from .errors import SandyError
@@ -41,7 +45,7 @@ _ZERO = {"int": "0", "float": "0.0", "bool": "0", "string": '""'}
 _NUM = ("int", "float")
 
 # Global builtins the native backend understands.
-_NATIVE_BUILTINS = {"len", "str"}
+_NATIVE_BUILTINS = {"len", "str", "push"}
 
 # String methods -> (C helper, result type).
 _STRING_METHODS = {
@@ -127,6 +131,11 @@ static char* sy_trim(const char* s) {
     char* r = (char*)malloc(n + 1);
     memcpy(r, s, n); r[n] = 0; return r;
 }
+static void sy_prepr(const char* s) {  /* quoted form used inside lists */
+    putchar('"');
+    for (; *s; s++) { if (*s == '\\' || *s == '"') putchar('\\'); putchar(*s); }
+    putchar('"');
+}
 """
 
 
@@ -160,6 +169,47 @@ def _cstr(s):
     return "".join(out)
 
 
+# Element sandy type -> (struct suffix, element C type) for native lists.
+_ELEM = {"int": ("i", "long long"), "float": ("d", "double"),
+         "string": ("s", "const char*"), "bool": ("b", "int")}
+
+
+def _list_base(t):
+    """'list' base of a type, or None if it isn't a list type."""
+    if isinstance(t, str) and t.startswith("list<") and t.endswith(">"):
+        return t[5:-1]
+    return None
+
+
+def _list_runtime(et):
+    """C source for a growable list of element type `et` (int/float/...)."""
+    sfx, ct = _ELEM[et]
+    return f"""
+typedef struct {{ {ct}* data; long long len, cap; }} SyList_{sfx};
+static SyList_{sfx}* sy_lnew_{sfx}(void) {{
+    SyList_{sfx}* L = (SyList_{sfx}*)malloc(sizeof(SyList_{sfx}));
+    L->data = NULL; L->len = 0; L->cap = 0; return L;
+}}
+static SyList_{sfx}* sy_lpush_{sfx}(SyList_{sfx}* L, {ct} v) {{
+    if (L->len == L->cap) {{
+        L->cap = L->cap ? L->cap * 2 : 8;
+        L->data = ({ct}*)realloc(L->data, (size_t)L->cap * sizeof({ct}));
+    }}
+    L->data[L->len++] = v; return L;
+}}
+static {ct} sy_lget_{sfx}(SyList_{sfx}* L, long long i, int line) {{
+    if (i < 0) i += L->len;
+    if (i < 0 || i >= L->len) {{ fprintf(stderr, "RuntimeError (line %d): list index out of range\\n", line); exit(1); }}
+    return L->data[i];
+}}
+static void sy_lset_{sfx}(SyList_{sfx}* L, long long i, {ct} v, int line) {{
+    if (i < 0) i += L->len;
+    if (i < 0 || i >= L->len) {{ fprintf(stderr, "RuntimeError (line %d): list index out of range\\n", line); exit(1); }}
+    L->data[i] = v;
+}}
+"""
+
+
 class _Sig:
     __slots__ = ("params", "ptypes", "ret")
 
@@ -172,6 +222,8 @@ class _Sig:
 class CBackend:
     def __init__(self):
         self.funcs = {}
+        self.lists_needed = set()  # element types of lists used (for runtime)
+        self._tmp = 0
 
     # -- entry --
     def compile(self, program):
@@ -183,14 +235,36 @@ class CBackend:
         main_body = self._emit_main(topstmts)
         return self._assemble(sections, main_body)
 
+    # C type / zero-value for a (possibly list) Sandy type.
+    def _cty(self, t):
+        et = _list_base(t)
+        if et is not None:
+            if et not in _ELEM:
+                raise NativeUnsupported(
+                    f"native lists support element types int/float/bool/"
+                    f"string, not '{et}'", None)
+            self.lists_needed.add(et)
+            return f"SyList_{_ELEM[et][0]}*"
+        if t not in C_TYPE:
+            raise NativeUnsupported(f"unsupported native type '{t or 'any'}'", None)
+        return C_TYPE[t]
+
+    def _czero(self, t):
+        return "NULL" if _list_base(t) is not None else _ZERO[t]
+
+    def _newtmp(self):
+        self._tmp += 1
+        return f"_t{self._tmp}"
+
     def _register(self, fd):
         for pt in fd.param_types:
-            if pt not in C_TYPE:
+            if pt not in C_TYPE and _list_base(pt) is None:
                 raise NativeUnsupported(
                     f"native function '{fd.name}' needs typed parameters "
-                    f"(int/float/bool/string); got '{pt or 'any'}'", fd.line)
+                    f"(int/float/bool/string/list<T>); got '{pt or 'any'}'",
+                    fd.line)
         ret = fd.ret_type
-        if ret is not None and ret not in C_TYPE:
+        if ret is not None and ret not in C_TYPE and _list_base(ret) is None:
             raise NativeUnsupported(
                 f"native function '{fd.name}' has unsupported return type "
                 f"'{ret}'", fd.line)
@@ -201,11 +275,12 @@ class CBackend:
         sig = self.funcs[fd.name]
         scope = dict(zip(sig.params, sig.ptypes))
         locals_ = self._infer_locals(fd.body, scope, sig)
-        params = ", ".join(f"{C_TYPE[t]} {n}" for n, t in zip(sig.params, sig.ptypes))
-        ret_c = C_TYPE[sig.ret] if sig.ret else "void"
+        params = ", ".join(f"{self._cty(t)} {n}"
+                           for n, t in zip(sig.params, sig.ptypes))
+        ret_c = self._cty(sig.ret) if sig.ret else "void"
         lines = [f"{ret_c} {fd.name}({params or 'void'}) {{"]
         for n, t in locals_:
-            lines.append(f"    {C_TYPE[t]} {n} = {_ZERO[t]};")
+            lines.append(f"    {self._cty(t)} {n} = {self._czero(t)};")
         lines += self._emit_block(fd.body, scope, sig, 1)
         lines.append("}")
         return "\n".join(lines)
@@ -217,7 +292,7 @@ class CBackend:
         locals_ = self._infer_locals(block, scope, pseudo)
         lines = ["int main(void) {"]
         for n, t in locals_:
-            lines.append(f"    {C_TYPE[t]} {n} = {_ZERO[t]};")
+            lines.append(f"    {self._cty(t)} {n} = {self._czero(t)};")
         lines += self._emit_block(block, scope, pseudo, 1)
         lines.append("    return 0;")
         lines.append("}")
@@ -231,6 +306,8 @@ class CBackend:
             for s in b.statements:
                 t = type(s)
                 if t is N.Assign:
+                    if isinstance(s.target, N.Index):
+                        continue  # index assignment declares no new variable
                     if not isinstance(s.target, N.Identifier):
                         raise NativeUnsupported(
                             "native mode supports only simple variable "
@@ -238,7 +315,7 @@ class CBackend:
                     name = s.target.name
                     if s.annotation is not None:
                         vt = s.annotation
-                        if vt not in C_TYPE:
+                        if vt not in C_TYPE and _list_base(vt) is None:
                             raise NativeUnsupported(
                                 f"unsupported native type '{vt}'", s.line)
                     elif s.op != "=":  # compound needs existing var
@@ -262,8 +339,9 @@ class CBackend:
                     visit(s.body)
                 elif t is N.For:
                     if s.var not in scope:
-                        scope[s.var] = "int"
-                        found.append((s.var, "int"))
+                        vt = self._forvar_type(s, scope, sig)
+                        scope[s.var] = vt
+                        found.append((s.var, vt))
                     visit(s.body)
                 elif t is N.FuncDef:
                     raise NativeUnsupported(
@@ -290,13 +368,18 @@ class CBackend:
             code, _ = self._expr(e, scope, sig, allow_void=True)
             return [f"{ind}{code};"]
         if t is N.Assign:
+            if isinstance(s.target, N.Index):
+                return self._emit_index_set(s, scope, sig, ind)
             name = s.target.name
+            declared = scope[name]
             if s.op == "=":
                 value = s.value
             else:
                 value = N.BinaryOp(s.op[0], s.target, s.value, s.line)
-            code, vt = self._expr(value, scope, sig)
-            declared = scope[name]
+            if isinstance(value, N.ListLit):
+                code, vt = self._list_literal(value, scope, sig, declared)
+            else:
+                code, vt = self._expr(value, scope, sig)
             self._check_assignable(declared, vt, s.line, name)
             if declared == "float" and vt == "int":
                 code = f"(double)({code})"
@@ -341,13 +424,45 @@ class CBackend:
             f"{type(s).__name__} is not supported in native mode",
             getattr(s, "line", None))
 
+    def _emit_index_set(self, s, scope, sig, ind):
+        target = s.target
+        tc, tt = self._expr(target.target, scope, sig)
+        et = _list_base(tt)
+        if et is None:
+            raise NativeUnsupported(
+                f"cannot index-assign into a {tt} in native mode", s.line)
+        ic, it = self._expr(target.index, scope, sig)
+        if it != "int":
+            raise NativeUnsupported("list index must be an int", s.line)
+        sfx = _ELEM[et][0]
+        if s.op == "=":
+            value = s.value
+        else:
+            value = N.BinaryOp(s.op[0], target, s.value, s.line)
+        vc, vt = self._expr(value, scope, sig)
+        self._check_assignable(et, vt, s.line, "list element")
+        if et == "float" and vt == "int":
+            vc = f"(double)({vc})"
+        return [f"{ind}sy_lset_{sfx}({tc}, {ic}, {vc}, {s.line});"]
+
+    def _forvar_type(self, s, scope, sig):
+        it = s.iterable
+        if isinstance(it, N.Call) and isinstance(it.callee, N.Identifier) \
+                and it.callee.name == "range":
+            return "int"
+        _, itt = self._expr(it, scope, sig)
+        et = _list_base(itt)
+        if et is None:
+            raise NativeUnsupported(
+                "native for-loops iterate over range(...) or a list", s.line)
+        return et
+
     def _emit_for(self, s, scope, sig, indent):
         ind = "    " * indent
         it = s.iterable
         if not (isinstance(it, N.Call) and isinstance(it.callee, N.Identifier)
                 and it.callee.name == "range"):
-            raise NativeUnsupported(
-                "native for-loops must iterate over range(...)", s.line)
+            return self._emit_for_list(s, scope, sig, indent)
         args = it.args
         if not 1 <= len(args) <= 3:
             raise NativeUnsupported("range expects 1 to 3 arguments", s.line)
@@ -374,6 +489,24 @@ class CBackend:
         lines = [f"{ind}for ({v} = {start}; {v} {cmp} {stop}; {v} += {step}) {{"]
         lines += self._emit_block(s.body, scope, sig, indent + 1)
         lines.append(f"{ind}}}")
+        return lines
+
+    def _emit_for_list(self, s, scope, sig, indent):
+        ind = "    " * indent
+        code, itt = self._expr(s.iterable, scope, sig)
+        et = _list_base(itt)
+        if et is None:
+            raise NativeUnsupported(
+                "native for-loops iterate over range(...) or a list", s.line)
+        sfx = _ELEM[et][0]
+        lst, i = self._newtmp(), self._newtmp()
+        lines = [
+            f"{ind}{{ SyList_{sfx}* {lst} = {code};",
+            f"{ind}for (long long {i} = 0; {i} < {lst}->len; {i}++) {{",
+            f"{ind}    {s.var} = {lst}->data[{i}];",
+        ]
+        lines += self._emit_block(s.body, scope, sig, indent + 1)
+        lines.append(f"{ind}}} }}")
         return lines
 
     def _emit_print(self, args, scope, sig, ind):
@@ -406,8 +539,34 @@ class CBackend:
             return [f'{ind}fputs(({code}) ? "true" : "false", stdout);']
         if t == "string":
             return [f"{ind}fputs({code}, stdout);"]
+        if _list_base(t) is not None:
+            return self._emit_list_print(code, t, ind)
         raise NativeUnsupported(f"cannot print a {t} value in native mode",
                                 getattr(expr, "line", None))
+
+    def _emit_list_print(self, code, t, ind):
+        et = _list_base(t)
+        sfx = _ELEM[et][0]
+        lst, i = self._newtmp(), self._newtmp()
+        elem = f"{lst}->data[{i}]"
+        if et == "int":
+            show = f'printf("%lld", (long long)({elem}));'
+        elif et == "float":
+            show = f"sy_pf({elem});"
+        elif et == "bool":
+            show = f'fputs(({elem}) ? "true" : "false", stdout);'
+        else:  # string -> quoted, like the interpreter's list formatting
+            show = f"sy_prepr({elem});"
+        return [
+            f"{ind}{{ SyList_{sfx}* {lst} = {code};",
+            f'{ind}fputs("[", stdout);',
+            f"{ind}for (long long {i} = 0; {i} < {lst}->len; {i}++) {{",
+            f'{ind}    if ({i}) fputs(", ", stdout);',
+            f"{ind}    {show}",
+            f"{ind}}}",
+            f'{ind}fputs("]", stdout);',
+            f"{ind}}}",
+        ]
 
     # -- expressions: return (c_code, sandy_type) --
     def _expr(self, e, scope, sig, allow_void=False):
@@ -443,9 +602,56 @@ class CBackend:
             return self._binary(e, scope, sig)
         if t is N.Call:
             return self._call(e, scope, sig, allow_void)
+        if t is N.ListLit:
+            return self._list_literal(e, scope, sig, None)
+        if t is N.Index:
+            return self._index(e, scope, sig)
         raise NativeUnsupported(
             f"{type(e).__name__} expressions are not supported in native mode",
             getattr(e, "line", None))
+
+    def _list_literal(self, e, scope, sig, expected):
+        """Build a native list. `expected` is the list type from context (used
+        to type an empty literal, e.g. `xs: list<int> = []`)."""
+        et = None
+        for item in e.items:
+            _, it = self._expr(item, scope, sig)
+            et = it if et is None else et
+            if it != et:
+                raise NativeUnsupported(
+                    "native list literals must be homogeneous "
+                    f"(saw {et} and {it})", e.line)
+        if et is None:  # empty literal
+            eb = _list_base(expected) if expected else None
+            if eb is None:
+                raise NativeUnsupported(
+                    "empty list needs a type annotation in native mode, "
+                    "e.g. `xs: list<int> = []`", e.line)
+            et = eb
+        if et not in _ELEM:
+            raise NativeUnsupported(
+                f"native lists don't support element type '{et}'", e.line)
+        sfx = _ELEM[et][0]
+        self.lists_needed.add(et)
+        tmp = self._newtmp()
+        stmts = [f"SyList_{sfx}* {tmp} = sy_lnew_{sfx}();"]
+        for item in e.items:
+            ic, _ = self._expr(item, scope, sig)
+            stmts.append(f"sy_lpush_{sfx}({tmp}, {ic});")
+        # GNU statement expression: run the pushes, yield the list pointer.
+        return ("({ " + " ".join(stmts) + f" {tmp}; }})", f"list<{et}>")
+
+    def _index(self, e, scope, sig):
+        tc, tt = self._expr(e.target, scope, sig)
+        et = _list_base(tt)
+        if et is None:
+            raise NativeUnsupported(
+                f"cannot index a {tt} in native mode", e.line)
+        ic, it = self._expr(e.index, scope, sig)
+        if it != "int":
+            raise NativeUnsupported("list index must be an int", e.line)
+        sfx = _ELEM[et][0]
+        return (f"sy_lget_{sfx}({tc}, {ic}, {e.line})", et)
 
     def _binary(self, e, scope, sig):
         lc, lt = self._expr(e.left, scope, sig)
@@ -523,16 +729,30 @@ class CBackend:
         return (f"{name}({', '.join(parts)})", fn.ret)
 
     def _builtin_call(self, name, e, scope, sig):
+        if name == "push":
+            if len(e.args) != 2:
+                raise NativeUnsupported("push() expects 2 arguments", e.line)
+            lc, lt = self._expr(e.args[0], scope, sig)
+            et = _list_base(lt)
+            if et is None:
+                raise NativeUnsupported(
+                    f"push() needs a list, got {lt}", e.line)
+            vc, vt = self._expr(e.args[1], scope, sig)
+            self._check_assignable(et, vt, e.line, "push() value")
+            if et == "float" and vt == "int":
+                vc = f"(double)({vc})"
+            return (f"sy_lpush_{_ELEM[et][0]}({lc}, {vc})", lt)
         if len(e.args) != 1:
             raise NativeUnsupported(
                 f"{name}() expects 1 argument in native mode", e.line)
         ac, at = self._expr(e.args[0], scope, sig)
         if name == "len":
-            if at != "string":
-                raise NativeUnsupported(
-                    f"native len() only supports strings so far, got {at}",
-                    e.line)
-            return (f"((long long)strlen({ac}))", "int")
+            if at == "string":
+                return (f"((long long)strlen({ac}))", "int")
+            if _list_base(at) is not None:
+                return (f"({ac}->len)", "int")
+            raise NativeUnsupported(
+                f"native len() supports strings and lists, got {at}", e.line)
         # str(x): convert a scalar to its Sandy string form
         if at == "string":
             return (ac, "string")
@@ -592,9 +812,13 @@ class CBackend:
     def _assemble(self, sections, main_body):
         protos = []
         for name, sig in self.funcs.items():
-            params = ", ".join(C_TYPE[t] for t in sig.ptypes) or "void"
-            ret_c = C_TYPE[sig.ret] if sig.ret else "void"
+            params = ", ".join(self._cty(t) for t in sig.ptypes) or "void"
+            ret_c = self._cty(sig.ret) if sig.ret else "void"
             protos.append(f"{ret_c} {name}({params});")
+        # List runtimes must precede everything that uses their structs.
+        list_rt = "".join(_list_runtime(et)
+                          for et in ("int", "float", "string", "bool")
+                          if et in self.lists_needed)
         parts = [
             "#include <stdio.h>",
             "#include <math.h>",
@@ -602,6 +826,7 @@ class CBackend:
             "#include <stdlib.h>",
             "#include <ctype.h>",
             _HELPERS,
+            list_rt,
             "\n".join(protos),
             "",
             "\n\n".join(sections),

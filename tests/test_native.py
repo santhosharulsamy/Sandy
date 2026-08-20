@@ -68,11 +68,19 @@ SUPPORTED = [
     'print("  pad  ".trim())\nprint("ZZZ".lower())\n'
     'print("apple" < "banana")\nprint("n = " + str(21 * 2))\n'
     'print("f = " + str(1.5))\nprint("b = " + str(3 > 1))',
+    # typed lists: literals, indexing, push, index-set, iteration, params
+    'fn total(xs: list<int>) -> int { s: int = 0\n for x in xs { s += x }\n'
+    ' return s }\n'
+    'a: list<int> = [4, 8, 15]\npush(a, 16)\na[0] = 40\n'
+    'print(a)\nprint(len(a))\nprint(a[-1])\nprint(total(a))\n'
+    'sq: list<int> = []\nfor i in range(5) { push(sq, i * i) }\nprint(sq)\n'
+    'ws: list<string> = ["z", "a"]\nprint(ws)\nprint(ws[1])',
 ]
 
 # Programs the native backend must reject with a clear error.
 UNSUPPORTED = [
-    'a = [1, 2, 3]',                      # lists
+    'a = [1, "two", 3]',                  # heterogeneous list literal
+    'a = [[1, 2], [3]]',                  # nested lists (element not scalar)
     'm = {"a": 1}',                       # maps
     'fn f(x) { return x + 1 }\nprint(f(1))',  # untyped params
     'print(keys({}))',                    # unsupported builtin
@@ -99,6 +107,7 @@ class TestNativeMatchesInterpreter(unittest.TestCase):
                     "fib(30) = 832040\n"
                     "primes under 100 = 25\n"
                     "average(7, 10) = 8.5\n"
+                    "squares 1..5 = [1, 4, 9, 16, 25]\n"
                     + "-" * 20 + "\n")
         self.assertEqual(compile_and_run(src), expected)
 

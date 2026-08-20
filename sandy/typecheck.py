@@ -52,6 +52,39 @@ def _norm(t):
     return "any" if t is None else t
 
 
+def _base(t):
+    """Base name of a (possibly parameterized) type: list<int> -> list."""
+    if isinstance(t, str) and "<" in t:
+        return t[:t.index("<")]
+    return t
+
+
+def _split_top(s):
+    """Split a comma list at the top nesting level: 'string,list<int>'."""
+    parts, depth, start = [], 0, 0
+    for i, ch in enumerate(s):
+        if ch == "<":
+            depth += 1
+        elif ch == ">":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            parts.append(s[start:i]); start = i + 1
+    parts.append(s[start:])
+    return parts
+
+
+def _type_args(t):
+    """Type arguments of a parameterized type. An unparameterized list/map is
+    treated as fully gradual (element type `any`)."""
+    if isinstance(t, str) and "<" in t:
+        return tuple(_split_top(t[t.index("<") + 1:-1]))
+    if t == "list":
+        return ("any",)
+    if t == "map":
+        return ("any", "any")
+    return ()
+
+
 def assignable(expected, actual):
     """Can a value of `actual` type be used where `expected` is wanted?"""
     if expected is None or actual is None:
@@ -60,9 +93,14 @@ def assignable(expected, actual):
         return True
     if isinstance(expected, FuncType) or isinstance(actual, FuncType):
         return isinstance(expected, FuncType) and isinstance(actual, FuncType)
-    if expected == actual:
+    eb, ab = _base(expected), _base(actual)
+    if eb in ("list", "map") and ab == eb:
+        # Element/value types checked gradually (any is compatible).
+        return all(assignable(x, y)
+                   for x, y in zip(_type_args(expected), _type_args(actual)))
+    if eb == ab:
         return True
-    if expected == "float" and actual == "int":
+    if eb == "float" and ab == "int":
         return True  # int widens to float
     return False
 
@@ -184,8 +222,9 @@ class TypeChecker:
         return "nil"
 
     def _i_list(self, node, scope):
-        for item in node.items:
-            self._infer(item, scope)
+        elems = [self._infer(item, scope) for item in node.items]
+        if elems and all(e == elems[0] and e not in ("any", None) for e in elems):
+            return f"list<{elems[0]}>"
         return "list"
 
     def _i_map(self, node, scope):
@@ -250,7 +289,11 @@ class TypeChecker:
         self._infer(node.index, scope)
         if target_t == "string":
             return "string"
-        return "any"  # list element / map value types are not tracked yet
+        if _base(target_t) == "list":
+            return _type_args(target_t)[0]      # element type
+        if _base(target_t) == "map":
+            return _type_args(target_t)[1]      # value type
+        return "any"
 
     def _i_attribute(self, node, scope):
         self._infer(node.target, scope)
@@ -275,8 +318,8 @@ class TypeChecker:
                 return self._num_result(op, lt, rt)
             if lt == "string" and rt == "string":
                 return "string"
-            if lt == "list" and rt == "list":
-                return "list"
+            if _base(lt) == "list" and _base(rt) == "list":
+                return lt if lt == rt else "list"
             self.error(f"cannot add {type_name(lt)} and {type_name(rt)}", line)
             return "any"
         if op == "*":
@@ -284,8 +327,10 @@ class TypeChecker:
                 return self._num_result(op, lt, rt)
             if (lt == "string" and rt == "int") or (lt == "int" and rt == "string"):
                 return "string"
-            if (lt == "list" and rt == "int") or (lt == "int" and rt == "list"):
-                return "list"
+            if (_base(lt) == "list" and rt == "int"):
+                return lt
+            if (lt == "int" and _base(rt) == "list"):
+                return rt
             self.error(f"cannot multiply {type_name(lt)} and {type_name(rt)}", line)
             return "any"
         # - / % **

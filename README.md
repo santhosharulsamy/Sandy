@@ -201,7 +201,9 @@ score += add(10, 5)      # fine
 ```
 
 Type names: `int`, `float`, `string`, `bool`, `nil`, `list`, `map`, and
-`any` (opts out of checking). Anything unannotated is `any`.
+`any` (opts out of checking). Anything unannotated is `any`. Lists and maps
+can be parameterized — `list<int>`, `map<string, int>` — so indexing knows the
+element type (e.g. `xs[0] + 1` is flagged when `xs` is a `list<string>`).
 
 ```bash
 sandy check program.sy      # type-check without running
@@ -222,17 +224,25 @@ sandy build program.sy --run    # build and run it
 sandy build program.sy --emit-c # also keep the generated C
 ```
 
-The native backend handles Sandy's **typed scalar core** — `int`, `float`,
-`bool`, and `string` (with concatenation, repetition, ordering, `len`, `str`,
-and the `.upper()/.lower()/.trim()/.length()` methods), plus functions,
-recursion, loops and conditionals. Typed numeric code compiled this way runs
-at native (C) speed: `fib(35)` takes about **0.02s** as a compiled binary
-versus roughly **96s** on the VM. Features outside this core (lists, maps,
-closures, dynamic `any`) are reported clearly — run those with `sandy run` or
-`sandy --vm` instead. A C compiler (`cc`, `gcc`, or `clang`) is required.
+The native backend handles Sandy's **typed core**:
 
-Native strings are heap-allocated and not yet garbage-collected, which is fine
-for short-lived programs but not long-running ones — a GC is on the roadmap.
+- `int`, `float`, `bool`, and `string` (concatenation, repetition, ordering,
+  `len`, `str`, and `.upper()/.lower()/.trim()/.length()`)
+- **typed lists** `list<int>` / `list<float>` / `list<string>` — literals,
+  indexing, `push`, index-assignment, `for`-iteration, printing — compiled to
+  unboxed growable C arrays (no boxing, no runtime type dispatch)
+- functions, recursion, loops, conditionals
+
+Compiled this way, typed code runs at native (C) speed: `fib(35)` takes about
+**0.02s** as a compiled binary versus roughly **96s** on the VM, and list
+operations run ~**100×** faster per element than the VM. Features outside this
+core (maps, closures, dynamic `any`) are reported clearly — run those with
+`sandy run` or `sandy --vm` instead. A C compiler (`cc`, `gcc`, or `clang`) is
+required.
+
+Native strings and lists are heap-allocated and not yet garbage-collected,
+which is fine for short-lived programs but not long-running ones — a GC is on
+the roadmap.
 
 ### Functions
 

@@ -35,8 +35,14 @@ fn banner(title: string) -> string {
     return "== " + title.upper() + " =="
 }
 
+squares: list<int> = []
+for i in range(1, 6) {
+    push(squares, i * i)
+}
+
 print(banner("results"))
 print("fib(30) = {fib(30)}")
 print("primes under 100 = {count}")
 print("average(7, 10) = {average(7, 10)}")
+print("squares 1..5 = {squares}")
 print("-" * 20)
