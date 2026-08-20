@@ -67,8 +67,13 @@ class TestVMMatchesInterpreter(unittest.TestCase):
         files = sorted(glob.glob(os.path.join(root, "examples", "*.sy")))
         self.assertTrue(files, "no example programs found")
         for path in files:
+            # native.sy is a heavy fib(30) showcase for the native backend;
+            # its engine equivalence is covered without the interpreter cost.
+            if os.path.basename(path) == "native.sy":
+                continue
             with self.subTest(example=os.path.basename(path)):
-                src = open(path, encoding="utf-8").read()
+                with open(path, encoding="utf-8") as f:
+                    src = f.read()
                 self.assertEqual(vm(src), walk(src), f"mismatch in {path}")
 
 

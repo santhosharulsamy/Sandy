@@ -33,6 +33,74 @@ def type_check_source(source):
     return check(parse(tokenize(source)))
 
 
+def build_file(path, output=None, run=False, emit_c=False):
+    """Compile a Sandy program to a native executable via C.
+
+    Handles the typed scalar core; unsupported features are reported clearly.
+    """
+    import os
+    import shutil
+    import subprocess
+    import tempfile
+    from .cbackend import to_c, NativeUnsupported
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            source = f.read()
+    except OSError as e:
+        print(f"sandy: cannot open {path}: {e.strerror}", file=sys.stderr)
+        return 1
+
+    try:
+        csrc = to_c(parse(tokenize(source)))
+    except NativeUnsupported as e:
+        _report(e.format("NativeError"), path, e.line, source)
+        print("  the native backend supports Sandy's typed scalar core; run "
+              "full programs with `sandy --vm` or `sandy run`.", file=sys.stderr)
+        return 1
+    except (LexError, ParseError) as e:
+        _report(e.format("SyntaxError"), path, e.line, source)
+        return 1
+
+    cc = next((c for c in ("cc", "gcc", "clang") if shutil.which(c)), None)
+    if cc is None:
+        print("sandy: no C compiler found (need cc, gcc, or clang)",
+              file=sys.stderr)
+        return 1
+
+    if output is None:
+        output = os.path.splitext(os.path.basename(path))[0]
+
+    c_path = output + ".c" if emit_c else None
+    if c_path is None:
+        fd, c_path = tempfile.mkstemp(suffix=".c")
+        os.close(fd)
+    with open(c_path, "w", encoding="utf-8") as f:
+        f.write(csrc)
+
+    try:
+        result = subprocess.run(
+            [cc, "-O2", "-o", output, c_path, "-lm"],
+            capture_output=True, text=True)
+    finally:
+        if not emit_c:
+            try:
+                os.remove(c_path)
+            except OSError:
+                pass
+
+    if result.returncode != 0:
+        print(f"sandy: C compilation failed:\n{result.stderr}", file=sys.stderr)
+        return 1
+
+    print(f"built native executable: {output}")
+    if emit_c:
+        print(f"  (C source kept at {c_path})")
+    if run:
+        return subprocess.run([os.path.abspath(output)]).returncode
+    return 0
+
+
 def run_file(path, engine="walk", check_types=True):
     try:
         with open(path, "r", encoding="utf-8") as f:

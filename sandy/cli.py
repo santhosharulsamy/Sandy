@@ -10,7 +10,7 @@ Usage:
 
 import sys
 
-from .runtime import run_file
+from .runtime import run_file, build_file
 from .repl import repl
 
 VERSION = "0.1.0"
@@ -21,6 +21,7 @@ usage:
   sandy                 start the interactive REPL
   sandy FILE.sy         run a Sandy program
   sandy run FILE.sy     run a Sandy program (explicit)
+  sandy build FILE.sy   compile to a native executable (typed scalar core)
   sandy check FILE.sy   type-check a program without running it
   sandy --vm FILE.sy    run on the bytecode VM engine (experimental, faster)
   sandy --no-check FILE.sy  skip the static type checker
@@ -56,6 +57,19 @@ def main(argv=None):
     if first in ("-v", "--version", "version"):
         print(f"Sandy {VERSION}")
         return 0
+    if first == "build":
+        files = [a for a in argv[1:] if not a.startswith("-")]
+        if not files:
+            print("sandy: 'build' needs a file argument", file=sys.stderr)
+            return 2
+        output = None
+        if "-o" in argv:
+            i = argv.index("-o")
+            if i + 1 < len(argv):
+                output = argv[i + 1]
+                files = [f for f in files if f != output]
+        return build_file(files[0], output=output,
+                          run="--run" in argv, emit_c="--emit-c" in argv)
     if first == "check":
         if len(argv) < 2:
             print("sandy: 'check' needs a file argument", file=sys.stderr)

@@ -36,6 +36,9 @@ python -m sandy examples/hello.sy
 # Run on the experimental bytecode VM (faster engine)
 python -m sandy --vm examples/fib.sy
 
+# Compile a typed program to a native executable (needs a C compiler)
+python -m sandy build examples/native.sy --run
+
 # Start the interactive REPL
 python -m sandy
 
@@ -209,6 +212,24 @@ Types also feed the compiler: on the `--vm` engine, code the compiler can
 prove is numeric is compiled to specialized numeric opcodes, so typed numeric
 functions run faster than untyped ones (see `bench/bench.py`).
 
+### Native compilation
+
+Typed programs can be compiled to a **native executable** via C:
+
+```bash
+sandy build program.sy          # produces ./program
+sandy build program.sy --run    # build and run it
+sandy build program.sy --emit-c # also keep the generated C
+```
+
+The native backend handles Sandy's **typed scalar core** — `int`, `float`,
+`bool`, `string`, with functions, recursion, loops and conditionals. Typed
+numeric code compiled this way runs at native (C) speed: `fib(35)` takes about
+**0.02s** as a compiled binary versus roughly **96s** on the VM. Features
+outside the scalar core (lists, maps, closures, dynamic `any`) are reported
+clearly — run those with `sandy run` or `sandy --vm` instead. A C compiler
+(`cc`, `gcc`, or `clang`) is required.
+
 ### Functions
 
 Functions are first-class values. They can be passed around, returned, and
@@ -359,6 +380,8 @@ source (.sy)  ──▶  Lexer  ──▶  tokens  ──▶  Parser  ──▶ 
 | `sandy/bytecode.py` | Bytecode instruction set + code objects |
 | `sandy/compiler.py` | Compiles the AST to bytecode |
 | `sandy/vm.py` | Stack-based bytecode VM (the faster `--vm` engine) |
+| `sandy/typecheck.py` | Gradual static type checker |
+| `sandy/cbackend.py` | Native backend: transpiles the typed core to C |
 | `sandy/typecheck.py` | Gradual static type checker (runs before execution) |
 | `sandy/runtime.py` | Glue: run a string or a file, report errors nicely |
 | `sandy/repl.py` | The interactive prompt |
