@@ -77,12 +77,15 @@ architecture CPython and Lua use).
   recursion-heavy code. Bigger multipliers come from the local-slot work
   above and, decisively, from Stages 3–4 (types + native compilation).
 
-### Stage 3 — Gradual types 🛡️⚡ (safety *and* speed, together)
+### Stage 3 — Gradual types 🛡️⚡ (safety *and* speed, together) — *in progress*
 Optional type annotations that you can add where you want them.
-- [ ] Syntax: `fn add(a: int, b: int) -> int { ... }`
-- [ ] A type checker that runs before execution (catches bugs early → safe)
+- [x] Syntax: `fn add(a: int, b: int) -> int { ... }` and `x: int = 5`
+- [x] A type checker that runs before execution (`sandy/typecheck.py`), so
+      bugs are caught up front → safe. `sandy check file.sy` checks only.
+- [x] Gradual: unannotated code is `any`, runs unchanged, zero false positives
 - [ ] Types feed the compiler so typed code generates faster paths → fast
-- [ ] Stays optional: untyped Sandy still runs, Python-easy → easy
+- [ ] Parameterized types (`list<int>`, `map<string, int>`)
+- [ ] Flow-sensitive narrowing
 - This is the keystone that lets Sandy be easy *and* safe *and* fast at once.
 
 ### Stage 4 — Native compilation ⚡ (the big leap)

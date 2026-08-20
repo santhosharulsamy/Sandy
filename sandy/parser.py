@@ -23,6 +23,10 @@ _ASSIGN_OPS = {
     T.STAR_EQ: "*=", T.SLASH_EQ: "/=",
 }
 
+# Valid type names that can appear in an annotation (besides 'nil' and 'fn',
+# which are keywords). 'any' opts a binding out of static checking.
+_TYPE_NAMES = {"int", "float", "string", "bool", "list", "map", "any"}
+
 
 class Parser:
     def __init__(self, tokens):
@@ -107,13 +111,37 @@ class Parser:
         name = self._expect(T.IDENT, "function name").value
         self._expect(T.LPAREN, "'('")
         params = []
+        param_types = []
         if not self._check(T.RPAREN):
             params.append(self._expect(T.IDENT, "parameter name").value)
+            param_types.append(self._opt_type_annotation())
             while self._match(T.COMMA):
                 params.append(self._expect(T.IDENT, "parameter name").value)
+                param_types.append(self._opt_type_annotation())
         self._expect(T.RPAREN, "')'")
+        ret_type = None
+        if self._match(T.ARROW):
+            ret_type = self._type_annotation()
         body = self._block()
-        return N.FuncDef(name, params, body, line)
+        return N.FuncDef(name, params, body, line, param_types, ret_type)
+
+    def _opt_type_annotation(self):
+        if self._match(T.COLON):
+            return self._type_annotation()
+        return None
+
+    def _type_annotation(self):
+        tok = self._cur()
+        if tok.type == T.NIL:
+            self._advance(); return "nil"
+        if tok.type == T.FN:
+            self._advance(); return "fn"
+        if tok.type == T.IDENT and tok.value in _TYPE_NAMES:
+            self._advance(); return tok.value
+        got = tok.value if tok.value is not None else tok.type
+        raise ParseError(
+            f"expected a type name (int, float, string, bool, list, map, "
+            f"nil, any), got {got!r}", tok.line)
 
     def _if_stmt(self):
         line = self._advance().line  # 'if'
@@ -154,6 +182,13 @@ class Parser:
 
     def _assign_or_expr(self):
         expr = self._expression()
+        # Annotated variable declaration:  name: type = value
+        if isinstance(expr, N.Identifier) and self._check(T.COLON):
+            line = self._advance().line  # ':'
+            annotation = self._type_annotation()
+            self._expect(T.ASSIGN, "'=' (an annotated variable needs a value)")
+            value = self._expression()
+            return N.Assign(expr, "=", value, line, annotation)
         op_tok = self._cur()
         if op_tok.type in _ASSIGN_OPS:
             if not isinstance(expr, (N.Identifier, N.Index)):

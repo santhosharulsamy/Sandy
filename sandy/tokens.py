@@ -56,6 +56,7 @@ class TokenType:
     COMMA = "COMMA"
     COLON = "COLON"
     DOT = "DOT"
+    ARROW = "ARROW"  # -> for return-type annotations
 
     NEWLINE = "NEWLINE"
     EOF = "EOF"

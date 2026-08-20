@@ -175,6 +175,36 @@ for n in range(100) {
 }
 ```
 
+### Gradual types (optional)
+
+Sandy is dynamic by default, but you can *optionally* annotate functions and
+variables. Annotations are **checked before the program runs**, so a whole
+class of bugs is caught up front — while unannotated code stays fully
+dynamic. This is *gradual* typing: add types where they help, skip them where
+they don't.
+
+```sandy
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+score: int = 0
+score += add(10, 5)      # fine
+
+# These would be caught BEFORE running:
+#   score = "oops"       -> cannot assign string to 'score' declared as int
+#   add(1)               -> add() expects 2 argument(s), got 1
+#   add(1, "x")          -> argument 2 of add() expects int, got string
+```
+
+Type names: `int`, `float`, `string`, `bool`, `nil`, `list`, `map`, and
+`any` (opts out of checking). Anything unannotated is `any`.
+
+```bash
+sandy check program.sy      # type-check without running
+sandy --no-check program.sy # run without the type checker
+```
+
 ### Functions
 
 Functions are first-class values. They can be passed around, returned, and
@@ -293,6 +323,7 @@ The [`examples/`](examples/) directory has runnable programs:
 | --- | --- |
 | `hello.sy` | The basics — printing and variables |
 | `greet.sy` | String interpolation |
+| `typed.sy` | Gradual type annotations |
 | `fizzbuzz.sy` | Loops and conditionals |
 | `fib.sy` | Recursion and iteration |
 | `data.sy` | Lists, maps, methods, higher-order functions |
@@ -324,6 +355,7 @@ source (.sy)  ──▶  Lexer  ──▶  tokens  ──▶  Parser  ──▶ 
 | `sandy/bytecode.py` | Bytecode instruction set + code objects |
 | `sandy/compiler.py` | Compiles the AST to bytecode |
 | `sandy/vm.py` | Stack-based bytecode VM (the faster `--vm` engine) |
+| `sandy/typecheck.py` | Gradual static type checker (runs before execution) |
 | `sandy/runtime.py` | Glue: run a string or a file, report errors nicely |
 | `sandy/repl.py` | The interactive prompt |
 | `sandy/cli.py` | Command-line entry point |

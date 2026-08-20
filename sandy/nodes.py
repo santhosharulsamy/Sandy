@@ -111,9 +111,11 @@ class ExprStmt(Node):
 
 
 class Assign(Node):
-    __slots__ = ("target", "op", "value", "line")  # target: Identifier/Index
-    def __init__(self, target, op, value, line):
-        self.target = target; self.op = op; self.value = value; self.line = line
+    # target: Identifier/Index; annotation: optional type name (str) or None
+    __slots__ = ("target", "op", "value", "line", "annotation")
+    def __init__(self, target, op, value, line, annotation=None):
+        self.target = target; self.op = op; self.value = value
+        self.line = line; self.annotation = annotation
 
 
 class Block(Node):
@@ -141,9 +143,13 @@ class For(Node):
 
 
 class FuncDef(Node):
-    __slots__ = ("name", "params", "body", "line")
-    def __init__(self, name, params, body, line):
+    # param_types: list aligned with params (each a type name str or None)
+    # ret_type: return type name str or None
+    __slots__ = ("name", "params", "body", "line", "param_types", "ret_type")
+    def __init__(self, name, params, body, line, param_types=None, ret_type=None):
         self.name = name; self.params = params; self.body = body; self.line = line
+        self.param_types = param_types if param_types is not None else [None] * len(params)
+        self.ret_type = ret_type
 
 
 class Return(Node):

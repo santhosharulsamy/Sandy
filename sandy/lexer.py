@@ -249,6 +249,7 @@ class Lexer:
             "!=": TokenType.NEQ,
             "<=": TokenType.LE,
             ">=": TokenType.GE,
+            "->": TokenType.ARROW,
             "+=": TokenType.PLUS_EQ,
             "-=": TokenType.MINUS_EQ,
             "*=": TokenType.STAR_EQ,

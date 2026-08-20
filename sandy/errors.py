@@ -31,3 +31,8 @@ class ParseError(SandyError):
 class RuntimeErrorSandy(SandyError):
     def format(self, kind="RuntimeError"):
         return super().format(kind)
+
+
+class TypeCheckError(SandyError):
+    def format(self, kind="TypeError"):
+        return super().format(kind)

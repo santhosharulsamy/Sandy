@@ -27,7 +27,13 @@ def run_source_vm(source, out=None):
     VM(out=out).run(compile_program(program))
 
 
-def run_file(path, engine="walk"):
+def type_check_source(source):
+    """Return a list of (message, line) type errors for Sandy source."""
+    from .typecheck import check
+    return check(parse(tokenize(source)))
+
+
+def run_file(path, engine="walk", check_types=True):
     try:
         with open(path, "r", encoding="utf-8") as f:
             source = f.read()
@@ -36,6 +42,11 @@ def run_file(path, engine="walk"):
         return 1
 
     try:
+        if check_types:
+            type_errors = type_check_source(source)
+            if type_errors:
+                _report_type_errors(type_errors, path, source)
+                return 1
         if engine == "vm":
             run_source_vm(source)
         else:
@@ -53,6 +64,18 @@ def run_file(path, engine="walk"):
         _report(e.format("Error"), path, e.line, source)
         return 1
     return 0
+
+
+def _report_type_errors(errors, path, source):
+    lines = source.splitlines()
+    n = len(errors)
+    print(f"\n{path}: found {n} type error{'s' if n != 1 else ''} "
+          f"before running:", file=sys.stderr)
+    for message, line in sorted(errors, key=lambda e: (e[1] or 0)):
+        where = f" (line {line})" if line is not None else ""
+        print(f"\n  TypeError{where}: {message}", file=sys.stderr)
+        if line is not None and 1 <= line <= len(lines):
+            print(f"    {line} | {lines[line - 1].strip()}", file=sys.stderr)
 
 
 def _report(message, path, line, source):
