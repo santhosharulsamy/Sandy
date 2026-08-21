@@ -169,6 +169,9 @@ Turn Sandy into real machine code and single-file binaries.
       diagnostics (syntax + type errors), formatting, completion (keywords,
       builtins, file definitions), and a symbol outline — reusing the same
       lexer/parser/checker/formatter.
+- [x] Web playground: `web/playground.html` runs the real implementation in
+      the browser via Pyodide (WASM), generated from the package sources and
+      guarded against drift by a test.
 - [ ] Debugger, docs generator, a richer LSP (hover, go-to-definition)
 
 ---

@@ -26,6 +26,10 @@ a native (C) backend for the typed subset.
 📖 For the precise grammar, semantics, and type-system rules, see the
 **[Language Reference](docs/reference.md)**. This README is the guided tour.
 
+🏖️ **Try Sandy in your browser** — [`web/playground.html`](web/playground.html)
+runs the real implementation client-side via WebAssembly (open it locally or
+host it on any static site). No install required.
+
 ---
 
 ## Quick start
