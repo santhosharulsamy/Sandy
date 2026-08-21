@@ -157,6 +157,19 @@ class Interpreter:
     def _exec_continue(self, node, env):
         raise _Continue()
 
+    def _exec_try(self, node, env):
+        try:
+            self._exec_block(node.body, env)
+        except RuntimeErrorSandy as e:
+            # Bind the error message to the catch variable and run the handler.
+            # Control-flow signals (_Return/_Break/_Continue) are not caught.
+            env.define(node.catch_var, e.message)
+            self._exec_block(node.handler, env)
+
+    def _exec_throw(self, node, env):
+        value = self._eval(node.value, env)
+        raise RuntimeErrorSandy(to_str(value), node.line)
+
     # -- expression evaluation --
     def _eval(self, node, env):
         method = self._EXPR_DISPATCH.get(type(node))
@@ -434,6 +447,8 @@ Interpreter._STMT_DISPATCH = {
     N.Return: Interpreter._exec_return,
     N.Break: Interpreter._exec_break,
     N.Continue: Interpreter._exec_continue,
+    N.Try: Interpreter._exec_try,
+    N.Throw: Interpreter._exec_throw,
 }
 
 Interpreter._EXPR_DISPATCH = {

@@ -184,6 +184,33 @@ for n in range(100) {
 }
 ```
 
+### Error handling
+
+A runtime error inside a `try` block jumps to its `catch`, which binds the
+error **message** (a string) to a name. Raise your own errors with `throw`.
+Errors propagate up through function calls until a `try` catches them.
+
+```sandy
+try {
+    amount = int("oops")      # built-in errors are catchable
+} catch e {
+    print("failed: " + e)     # failed: cannot convert 'oops' to int
+}
+
+fn withdraw(balance, amount) {
+    if amount > balance {
+        throw "insufficient funds"
+    }
+    return balance - amount
+}
+
+try {
+    print(withdraw(100, 250))
+} catch e {
+    print("declined: " + e)   # declined: insufficient funds
+}
+```
+
 ### Gradual types (optional)
 
 Sandy is dynamic by default, but you can *optionally* annotate functions and

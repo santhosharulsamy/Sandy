@@ -130,11 +130,14 @@ Turn Sandy into real machine code and single-file binaries.
   at: the same types that keep Sandy easy and safe also make it genuinely
   fast once compiled.
 
-### Stage 5 — Real programs need a real language 🎈🛡️
-- [ ] Error handling (`try` / `catch`, or a Result-style approach)
+### Stage 5 — Real programs need a real language 🎈🛡️ — *in progress*
+- [x] Error handling: `try` / `catch` / `throw` (interpreter + VM, with sound
+      cross-frame unwinding; the caught value is the error message string).
+      Native rejects it as dynamic control flow.
+- [x] File I/O: `read_file`, `read_lines`, `write_file`, `append_file`
 - [ ] Modules / `import` and a project layout
 - [ ] User-defined types (structs / records)
-- [ ] File & network I/O
+- [ ] Network I/O
 - [ ] A standard library worth reaching for
 
 ### Stage 6 — Scale & ecosystem 🎈💛

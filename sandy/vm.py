@@ -53,6 +53,23 @@ class VM:
 
     def run(self, code):
         frames = [_Frame(code, self.genv)]
+        handlers = []   # (frame, handler_ip, stack_len) for open try blocks
+        while True:
+            try:
+                return self._exec(frames, handlers)
+            except RuntimeErrorSandy as err:
+                if not handlers:
+                    raise
+                # Unwind to the innermost handler's frame, restore its stack,
+                # hand the error message to the catch block, and resume there.
+                hframe, hip, hlen = handlers.pop()
+                while frames and frames[-1] is not hframe:
+                    frames.pop()
+                del hframe.stack[hlen:]
+                hframe.stack.append(err.message)
+                hframe.ip = hip
+
+    def _exec(self, frames, handlers):
         rt = self.rt
         _binary = rt._binary
         _truthy = is_truthy
@@ -193,6 +210,14 @@ class VM:
                     frames[-1].stack.append(retval)
                     switched = True
                     break
+
+                # --- exception handling ---
+                elif op == B.SETUP_TRY:
+                    handlers.append((frame, arg, len(stack)))
+                elif op == B.POP_TRY:
+                    handlers.pop()
+                elif op == B.THROW:
+                    raise RuntimeErrorSandy(to_str(stack.pop()), lines[ip - 1])
 
                 # --- remaining comparisons ---
                 elif op == B.CMP_EQ:

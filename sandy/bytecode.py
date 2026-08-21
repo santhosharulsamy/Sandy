@@ -62,6 +62,10 @@ MAKE_FUNCTION = 70
 CALL = 71               # arg = number of arguments
 RETURN = 72
 
+SETUP_TRY = 73          # arg = handler ip; push an exception handler
+POP_TRY = 74            # remove the innermost handler (try body finished)
+THROW = 75              # raise a Sandy error with the message on the stack
+
 OPNAMES = {v: k for k, v in list(globals().items()) if isinstance(v, int)}
 
 # Binary operator token-string -> opcode.

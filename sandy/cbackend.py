@@ -538,6 +538,11 @@ class CBackend:
             return [f"{ind}break;"]
         if t is N.Continue:
             return [f"{ind}continue;"]
+        if t is N.Try or t is N.Throw:
+            raise NativeUnsupported(
+                "try/catch/throw is dynamic control flow and is not supported "
+                "by the native backend; run it with the interpreter or `--vm`",
+                getattr(s, "line", None))
         raise NativeUnsupported(
             f"{type(s).__name__} is not supported in native mode",
             getattr(s, "line", None))

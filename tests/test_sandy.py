@@ -185,6 +185,27 @@ class TestErrors(unittest.TestCase):
         with self.assertRaises(RuntimeErrorSandy):
             run("a = [1]\nprint(a[5])")
 
+    def test_try_catch_runtime_error(self):
+        out = run('try { x = 1 / 0\n print("no") } catch e { print("got: " + e) }')
+        self.assertEqual(out, "got: division by zero\n")
+
+    def test_throw_and_catch(self):
+        out = run('try { throw "custom" } catch e { print(e) }')
+        self.assertEqual(out, "custom\n")
+
+    def test_throw_propagates_through_calls(self):
+        out = run('fn g() { throw "deep" }\nfn f() { g() }\n'
+                  'try { f() } catch e { print("caught " + e) }')
+        self.assertEqual(out, "caught deep\n")
+
+    def test_uncaught_throw_aborts(self):
+        try:
+            run('throw "unhandled"')
+        except RuntimeErrorSandy as e:
+            self.assertEqual(e.message, "unhandled")
+        else:
+            self.fail("expected RuntimeErrorSandy")
+
     def test_file_io_roundtrip(self):
         import tempfile
         d = tempfile.mkdtemp()

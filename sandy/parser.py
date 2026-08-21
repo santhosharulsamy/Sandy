@@ -94,7 +94,22 @@ class Parser:
         if t == T.CONTINUE:
             line = self._advance().line
             return N.Continue(line)
+        if t == T.TRY:
+            return self._try_stmt()
+        if t == T.THROW:
+            line = self._advance().line
+            value = self._expression()
+            return N.Throw(value, line)
         return self._assign_or_expr()
+
+    def _try_stmt(self):
+        line = self._advance().line  # 'try'
+        body = self._block()
+        self._skip_newlines()
+        self._expect(T.CATCH, "'catch' after a try block")
+        catch_var = self._expect(T.IDENT, "a name to bind the error to").value
+        handler = self._block()
+        return N.Try(body, catch_var, handler, line)
 
     def _block(self):
         self._expect(T.LBRACE, "'{'")

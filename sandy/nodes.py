@@ -168,3 +168,17 @@ class Continue(Node):
     __slots__ = ("line",)
     def __init__(self, line):
         self.line = line
+
+
+class Try(Node):
+    # body: Block; catch_var: str; handler: Block
+    __slots__ = ("body", "catch_var", "handler", "line")
+    def __init__(self, body, catch_var, handler, line):
+        self.body = body; self.catch_var = catch_var
+        self.handler = handler; self.line = line
+
+
+class Throw(Node):
+    __slots__ = ("value", "line")
+    def __init__(self, value, line):
+        self.value = value; self.line = line

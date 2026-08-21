@@ -1,0 +1,48 @@
+# Error handling in Sandy with try / catch / throw.
+#
+# A runtime error inside a `try` block jumps to its `catch`, which binds the
+# error *message* (a string) to a name you choose. You can also raise your
+# own errors with `throw`.
+
+# Catch a built-in runtime error.
+try {
+    result = 10 / 0
+    print("this line never runs")
+} catch e {
+    print("caught: " + e)
+}
+
+# Raise your own errors with throw.
+fn checked_sqrt(x) {
+    if x < 0 {
+        throw "cannot take sqrt of negative number " + str(x)
+    }
+    return sqrt(x)
+}
+
+for n in [16, 9, -4, 25] {
+    try {
+        print("sqrt({n}) = {checked_sqrt(n)}")
+    } catch e {
+        print("skipped: " + e)
+    }
+}
+
+# Errors propagate up through function calls until a try catches them.
+fn parse_amount(text) {
+    n = int(text)          # int() throws if the text isn't a number
+    if n < 0 {
+        throw "amount cannot be negative"
+    }
+    return n
+}
+
+for entry in ["42", "-5", "oops", "100"] {
+    try {
+        print("amount = {parse_amount(entry)}")
+    } catch e {
+        print("bad entry '{entry}': " + e)
+    }
+}
+
+print("done — the program kept running through every error")

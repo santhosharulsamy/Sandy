@@ -20,6 +20,9 @@ class TokenType:
     IN = "IN"
     BREAK = "BREAK"
     CONTINUE = "CONTINUE"
+    TRY = "TRY"
+    CATCH = "CATCH"
+    THROW = "THROW"
     TRUE = "TRUE"
     FALSE = "FALSE"
     NIL = "NIL"
@@ -73,6 +76,9 @@ KEYWORDS = {
     "in": TokenType.IN,
     "break": TokenType.BREAK,
     "continue": TokenType.CONTINUE,
+    "try": TokenType.TRY,
+    "catch": TokenType.CATCH,
+    "throw": TokenType.THROW,
     "true": TokenType.TRUE,
     "false": TokenType.FALSE,
     "nil": TokenType.NIL,

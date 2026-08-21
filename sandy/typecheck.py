@@ -154,6 +154,13 @@ class TypeChecker:
             self._check_funcdef(node, scope)
         elif t is N.Return:
             self._check_return(node, scope, expected_ret)
+        elif t is N.Try:
+            self._check_block(node.body, scope, expected_ret)
+            # The caught error is always a string message.
+            scope.define(node.catch_var, "string")
+            self._check_block(node.handler, scope, expected_ret)
+        elif t is N.Throw:
+            self._infer(node.value, scope)
         # Break / Continue: nothing to check
 
     def _check_assign(self, node, scope):

@@ -7,12 +7,13 @@ from . import bytecode as B
 
 class _Loop:
     """Tracks jump targets for break/continue while compiling a loop."""
-    __slots__ = ("kind", "continue_target", "break_sites")
+    __slots__ = ("kind", "continue_target", "break_sites", "try_depth")
 
-    def __init__(self, kind, continue_target):
+    def __init__(self, kind, continue_target, try_depth):
         self.kind = kind                 # "while" or "for"
         self.continue_target = continue_target
         self.break_sites = []            # indices of JUMP ops to patch to end
+        self.try_depth = try_depth       # open try-handlers when the loop began
 
 
 # Arithmetic operators whose result is numeric when both operands are.
@@ -40,6 +41,7 @@ class Compiler:
         self.lines = []
         self.consts = []
         self.loops = []
+        self.try_depth = 0   # number of exception handlers open at this point
 
     # -- low-level emit helpers --
     def _emit(self, op, arg, line):
@@ -164,7 +166,7 @@ class Compiler:
         start = self._here()
         self._compile_expr(node.cond)
         exit_jump = self._emit_jump(B.JUMP_IF_FALSE, node.line)
-        loop = _Loop("while", start)
+        loop = _Loop("while", start, self.try_depth)
         self.loops.append(loop)
         self._compile_block(node.body)
         self.loops.pop()
@@ -180,7 +182,7 @@ class Compiler:
         iter_ip = self._here()
         for_iter = self._emit_jump(B.FOR_ITER, node.line)
         self._emit(B.DEFINE_NAME, node.var, node.line)
-        loop = _Loop("for", iter_ip)
+        loop = _Loop("for", iter_ip, self.try_depth)
         self.loops.append(loop)
         self._compile_block(node.body)
         self.loops.pop()
@@ -200,12 +202,17 @@ class Compiler:
             self._emit(B.LOAD_CONST, self._const(None), node.line)
         else:
             self._compile_expr(node.value)
+        # Leaving the function unwinds every open try-handler in it.
+        for _ in range(self.try_depth):
+            self._emit(B.POP_TRY, None, node.line)
         self._emit(B.RETURN, None, node.line)
 
     def _c_break(self, node):
         if not self.loops:
             raise ParseError("'break' outside a loop", node.line)
         loop = self.loops[-1]
+        for _ in range(self.try_depth - loop.try_depth):
+            self._emit(B.POP_TRY, None, node.line)
         if loop.kind == "for":
             self._emit(B.POP, None, node.line)  # discard the iterator
         loop.break_sites.append(self._emit_jump(B.JUMP, node.line))
@@ -213,7 +220,27 @@ class Compiler:
     def _c_continue(self, node):
         if not self.loops:
             raise ParseError("'continue' outside a loop", node.line)
-        self._emit(B.JUMP, self.loops[-1].continue_target, node.line)
+        loop = self.loops[-1]
+        for _ in range(self.try_depth - loop.try_depth):
+            self._emit(B.POP_TRY, None, node.line)
+        self._emit(B.JUMP, loop.continue_target, node.line)
+
+    def _c_try(self, node):
+        setup = self._emit_jump(B.SETUP_TRY, node.line)   # arg patched to handler
+        self.try_depth += 1
+        self._compile_block(node.body)
+        self.try_depth -= 1
+        self._emit(B.POP_TRY, None, node.line)            # body ran cleanly
+        skip = self._emit_jump(B.JUMP, node.line)         # skip the handler
+        self._patch(setup, self._here())                  # handler starts here
+        # On entry the VM has pushed the error message; bind it to the catch var.
+        self._emit(B.DEFINE_NAME, node.catch_var, node.line)
+        self._compile_block(node.handler)
+        self._patch(skip, self._here())
+
+    def _c_throw(self, node):
+        self._compile_expr(node.value)
+        self._emit(B.THROW, None, node.line)
 
     # -- expressions --
     def _compile_expr(self, node):
@@ -332,6 +359,9 @@ def _collect_assigns(block, assigns, forvars):
         elif t is N.For:
             forvars.add(stmt.var)
             _collect_assigns(stmt.body, assigns, forvars)
+        elif t is N.Try:
+            _collect_assigns(stmt.body, assigns, forvars)
+            _collect_assigns(stmt.handler, assigns, forvars)
 
 
 def analyze_numeric(params, param_types, body):
@@ -369,6 +399,8 @@ Compiler._STMT = {
     N.Return: Compiler._c_return,
     N.Break: Compiler._c_break,
     N.Continue: Compiler._c_continue,
+    N.Try: Compiler._c_try,
+    N.Throw: Compiler._c_throw,
 }
 
 Compiler._EXPR = {

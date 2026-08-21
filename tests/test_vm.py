@@ -53,6 +53,22 @@ PROGRAMS = [
     'print(len("hello"))\nprint(type([]))\nprint(sqrt(144))\nprint(max([4, 9, 2]))',
     'nums = []\nfor i in range(6) { push(nums, i * i) }\nprint(nums)',
     'fn apply(f, x) { return f(f(x)) }\nfn inc(n) { return n + 1 }\nprint(apply(inc, 10))',
+    # try / catch / throw
+    'try { x = 1 / 0\n print("no") } catch e { print("caught " + e) }',
+    'try { throw "boom" } catch e { print(e) }\nprint("after")',
+    'fn risky(n) { if n < 0 { throw "neg" }\n return n }\n'
+    'try { print(risky(3))\n print(risky(-1)) } catch e { print("err: " + e) }',
+    # break out of a try inside a loop must unwind the handler
+    'i = 0\nwhile i < 5 { try { if i == 3 { break }\n print(i) } '
+    'catch e { print("x") }\n i += 1 }\nprint("done")',
+    # return out of a try inside a function
+    'fn f() { for n in [1, 2, 3] { try { if n == 2 { return n }\n'
+    ' throw "skip" } catch e { } }\n return 0 }\nprint(f())',
+    # nested try, inner rethrows
+    'try { try { throw "a" } catch x { throw "b:" + x } } catch y { print(y) }',
+    # continue out of a try inside a loop
+    'total = 0\nfor n in range(5) { try { if n == 2 { continue }\n'
+    ' total += n } catch e { } }\nprint(total)',
 ]
 
 
