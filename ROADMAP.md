@@ -172,6 +172,8 @@ Turn Sandy into real machine code and single-file binaries.
 - [x] Web playground: `web/playground.html` runs the real implementation in
       the browser via Pyodide (WASM), generated from the package sources and
       guarded against drift by a test.
+- [x] Syntax highlighting: a TextMate grammar + VS Code extension in
+      `editors/vscode/`; keyword/builtin lists kept in sync by a test.
 - [ ] Debugger, docs generator, a richer LSP (hover, go-to-definition)
 
 ---

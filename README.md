@@ -525,6 +525,10 @@ same lexer, parser, type checker, and formatter. It provides:
 Point any LSP-capable editor at the command `sandy lsp` for `.sy` files. For
 example, a generic client config just needs `command: "sandy", args: ["lsp"]`.
 
+For **syntax highlighting**, there's a VS Code extension (and a portable
+TextMate grammar) in [`editors/vscode/`](editors/vscode) — keywords, strings
+with interpolation, types, builtins, and more.
+
 ---
 
 ## How it works
