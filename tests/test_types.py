@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sandy.lexer import tokenize
 from sandy.parser import parse
-from sandy.typecheck import check
+from sandy.typecheck import check, TypeChecker
 
 
 def errors(code):
@@ -98,6 +98,42 @@ class TestCatchesRealBugs(unittest.TestCase):
     def test_unknown_type_name(self):
         msgs = messages('fn f(w: Widget) -> int { return 1 }')
         self.assertTrue(any("unknown type 'Widget'" in m for m in msgs))
+
+
+class TestTypedModules(unittest.TestCase):
+    """The checker reads imported modules' exported signatures."""
+
+    def test_stdlib_function_arity(self):
+        # math.gcd takes two arguments; catch a one-arg call across the import.
+        msgs = messages('import "math" as m\nprint(m.gcd(48))')
+        self.assertTrue(any("gcd() expects 2 argument" in m for m in msgs))
+
+    def test_unknown_module_member(self):
+        msgs = messages('import "math" as m\nprint(m.nope(1))')
+        self.assertTrue(any("has no member 'nope'" in m for m in msgs))
+
+    def test_stdlib_calls_are_clean(self):
+        code = ('import "math" as m\nimport "lists" as ls\n'
+                'fn sq(x) { return x * x }\n'
+                'print(m.gcd(48, 36))\nprint(ls.map(sq, [1, 2, 3]))')
+        self.assertEqual(errors(code), [])
+
+    def test_imported_struct_field_types(self):
+        import tempfile
+        d = tempfile.mkdtemp()
+        with open(os.path.join(d, "geo.sy"), "w", encoding="utf-8") as f:
+            f.write("struct Circle { radius: int }\n"
+                    "fn area(c: Circle) -> int { return c.radius * c.radius }\n")
+        # Wrong field type when constructing an imported struct.
+        errs = TypeChecker(base_dir=d).check(
+            parse(tokenize('import "geo.sy" as geo\nc = geo.Circle("x")')))
+        self.assertTrue(any("field 'radius' of Circle expects int"
+                            in m for m, _ in errs))
+        # Valid usage across the boundary is clean.
+        ok = TypeChecker(base_dir=d).check(parse(tokenize(
+            'import "geo.sy" as geo\nc: Circle = geo.Circle(5)\n'
+            'print(geo.area(c))\nprint(c.radius)')))
+        self.assertEqual(ok, [])
 
 
 class TestStructsNoFalsePositives(unittest.TestCase):

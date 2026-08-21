@@ -57,10 +57,10 @@ def run_source_vm(source, out=None, base_dir=None):
     vm.run(compile_program(program))
 
 
-def type_check_source(source):
+def type_check_source(source, base_dir=None):
     """Return a list of (message, line) type errors for Sandy source."""
-    from .typecheck import check
-    return check(parse(tokenize(source)))
+    from .typecheck import TypeChecker
+    return TypeChecker(base_dir=base_dir).check(parse(tokenize(source)))
 
 
 def build_file(path, output=None, run=False, emit_c=False):
@@ -142,7 +142,7 @@ def run_file(path, engine="walk", check_types=True):
     base_dir = os.path.dirname(os.path.abspath(path))
     try:
         if check_types:
-            type_errors = type_check_source(source)
+            type_errors = type_check_source(source, base_dir=base_dir)
             if type_errors:
                 _report_type_errors(type_errors, path, source)
                 return 1

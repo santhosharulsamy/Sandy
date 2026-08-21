@@ -10,9 +10,14 @@ The checker is intentionally conservative: it only reports an error when two
 *known, non-any* types definitely conflict. It never guesses.
 """
 
+import os
+
 from . import nodes as N
 
 NUM = ("int", "float")
+
+# Sentinel marking a module mid-analysis (to break import cycles).
+_ANALYZING = object()
 _PRIMITIVES = ("int", "float", "string", "bool", "nil", "list", "map")
 
 
@@ -49,6 +54,15 @@ class StructDecl:
         self.name = name
         self.fields = fields              # list of field names
         self.field_types = field_types    # dict field -> normalized type
+
+
+class ModuleType:
+    """An imported module's exported members and their types."""
+    __slots__ = ("name", "members")
+
+    def __init__(self, name, members):
+        self.name = name
+        self.members = members            # dict name -> type / FuncType / StructDecl
 
 
 def type_name(t):
@@ -120,9 +134,11 @@ def assignable(expected, actual):
 
 
 class TypeChecker:
-    def __init__(self):
+    def __init__(self, base_dir=None, module_cache=None):
         self.errors = []  # list of (message, line)
         self.structs = {}  # struct name -> StructDecl (for field lookups)
+        self.base_dir = base_dir            # for resolving imports
+        self.module_cache = {} if module_cache is None else module_cache
 
     def error(self, msg, line):
         self.errors.append((msg, line))
@@ -131,6 +147,56 @@ class TypeChecker:
         scope = Scope()
         self._check_block(program, scope, expected_ret=None)
         return self.errors
+
+    # -- module analysis (extract exported member types) --
+    def _resolve_module(self, path):
+        rel = path if path.endswith(".sy") else path + ".sy"
+        base = self.base_dir or os.getcwd()
+        candidate = os.path.abspath(os.path.join(base, rel))
+        if os.path.exists(candidate):
+            return candidate
+        stdlib = os.path.join(os.path.dirname(__file__), "stdlib", rel)
+        if os.path.exists(stdlib):
+            return os.path.abspath(stdlib)
+        return None
+
+    def _analyze_module(self, path):
+        """Return a ModuleType for an import, or None if it can't be analyzed
+        (missing file, syntax error, or an import cycle — the runtime reports
+        real load failures; the checker just stays gradual)."""
+        abspath = self._resolve_module(path)
+        if abspath is None:
+            return None
+        cached = self.module_cache.get(abspath)
+        if cached is _ANALYZING:
+            return None  # cycle: treat members as `any`
+        if cached is not None:
+            self._merge_structs(cached)
+            return cached
+        self.module_cache[abspath] = _ANALYZING
+        try:
+            from .lexer import tokenize
+            from .parser import parse
+            with open(abspath, "r", encoding="utf-8") as f:
+                program = parse(tokenize(f.read()))
+        except Exception:
+            self.module_cache.pop(abspath, None)
+            return None
+        sub = TypeChecker(base_dir=os.path.dirname(abspath),
+                          module_cache=self.module_cache)
+        scope = Scope()
+        sub._check_block(program, scope, expected_ret=None)  # errors ignored
+        name = os.path.splitext(os.path.basename(abspath))[0]
+        module = ModuleType(name, dict(scope.vars))
+        self.module_cache[abspath] = module
+        self._merge_structs(module)
+        return module
+
+    def _merge_structs(self, module):
+        # Make imported struct types available for field-access checking.
+        for member in module.members.values():
+            if isinstance(member, StructDecl) and member.name not in self.structs:
+                self.structs[member.name] = member
 
     # -- statements --
     def _collect_structs(self, block, scope):
@@ -202,8 +268,8 @@ class TypeChecker:
         elif t is N.Throw:
             self._infer(node.value, scope)
         elif t is N.Import:
-            # Imported modules are dynamic; their members are `any`.
-            scope.define(node.alias, "any")
+            module = self._analyze_module(node.path)
+            scope.define(node.alias, module if module is not None else "any")
         elif t is N.StructDef:
             for ft in node.field_types:
                 self._check_type(ft, node.line)
@@ -356,7 +422,10 @@ class TypeChecker:
                             node.args[i].line)
             return callee_t.name   # an instance's type is the struct's name
         if isinstance(callee_t, FuncType):
-            fname = node.callee.name + "()" if isinstance(node.callee, N.Identifier) else "function"
+            if isinstance(node.callee, (N.Identifier, N.Attribute)):
+                fname = node.callee.name + "()"
+            else:
+                fname = "function"
             if len(arg_types) != len(callee_t.params):
                 self.error(
                     f"{fname} expects {len(callee_t.params)} argument(s), "
@@ -383,7 +452,15 @@ class TypeChecker:
         return "any"
 
     def _i_attribute(self, node, scope):
-        decl = self.structs.get(self._infer(node.target, scope))
+        target_t = self._infer(node.target, scope)
+        if isinstance(target_t, ModuleType):
+            if node.name in target_t.members:
+                return target_t.members[node.name]
+            self.error(
+                f"module '{target_t.name}' has no member '{node.name}'",
+                node.line)
+            return "any"
+        decl = self.structs.get(target_t)
         if decl is not None:
             if node.name in decl.field_types:
                 return decl.field_types[node.name]

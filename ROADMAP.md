@@ -139,6 +139,10 @@ Turn Sandy into real machine code and single-file binaries.
       relative to the importing file, run once (cached), with circular-import
       detection (interpreter + VM; native rejects). Members are functions,
       structs, and variables accessed as `name.member`.
+- [x] Typed module members: the checker analyzes imported modules and verifies
+      calls to module functions (arity + argument types), module struct
+      construction, and member existence (`m.nope` → unknown member) — across
+      file boundaries, before running.
 - [x] User-defined types: `struct Name { fields }` — construction, `.` field
       access/mutation, value equality, `type()` reporting (interpreter + VM;
       native rejects for now).

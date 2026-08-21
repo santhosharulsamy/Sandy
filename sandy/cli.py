@@ -96,7 +96,9 @@ def check_only(path):
         print(f"sandy: cannot open {path}: {e.strerror}", file=sys.stderr)
         return 1
     try:
-        errors = type_check_source(source)
+        import os
+        errors = type_check_source(
+            source, base_dir=os.path.dirname(os.path.abspath(path)))
     except SandyError as e:
         print(f"{path}: {e.format('SyntaxError')}", file=sys.stderr)
         return 1

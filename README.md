@@ -253,6 +253,11 @@ print(geo.area(c))               # 78.53975
 Modules are cached (imported once, even via diamonds) and circular imports
 are detected with a clear error. See [`examples/modules/`](examples/modules).
 
+Imports are **type-checked across the boundary**: the checker reads the
+module's exported function and struct signatures, so `math.gcd(1)` (wrong
+arity), `geo.Circle("x")` (wrong field type), and `m.nope` (unknown member)
+are all caught before the program runs.
+
 ### Gradual types (optional)
 
 Sandy is dynamic by default, but you can *optionally* annotate functions and
