@@ -11,7 +11,8 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sandy.lsp import compute_diagnostics, completions, document_symbols
+from sandy.lsp import (compute_diagnostics, completions, document_symbols,
+                       hover_info, definition_line)
 
 
 class TestDiagnostics(unittest.TestCase):
@@ -55,6 +56,46 @@ class TestSymbols(unittest.TestCase):
         self.assertEqual(names["foo"], 12)   # Function
         self.assertEqual(names["P"], 23)     # Struct
         self.assertEqual(names["top"], 13)   # Variable
+
+
+SRC = ("fn add(a: int, b: int) -> int {\n"
+       "    return a + b\n"
+       "}\n\n"
+       "struct Point { x, y }\n\n"
+       "total = add(2, 3)\n"
+       "p = Point(1, 2)\n")
+
+
+class TestHover(unittest.TestCase):
+    def test_function_signature(self):
+        self.assertEqual(hover_info(SRC, 6, 9),
+                         "fn add(a: int, b: int) -> int")
+
+    def test_struct_signature(self):
+        self.assertEqual(hover_info(SRC, 7, 5), "struct Point { x, y }")
+
+    def test_parameter(self):
+        self.assertEqual(hover_info(SRC, 1, 11), "(parameter) a: int")
+
+    def test_builtin(self):
+        self.assertIn("print", hover_info("print(1)", 0, 2))
+
+    def test_nothing_on_whitespace(self):
+        self.assertIsNone(hover_info(SRC, 3, 0))
+
+
+class TestDefinition(unittest.TestCase):
+    def test_function(self):
+        self.assertEqual(definition_line(SRC, 6, 9), 1)   # add() -> line 1
+
+    def test_struct(self):
+        self.assertEqual(definition_line(SRC, 7, 5), 5)   # Point -> line 5
+
+    def test_parameter(self):
+        self.assertEqual(definition_line(SRC, 1, 11), 1)  # a -> its function
+
+    def test_unknown(self):
+        self.assertIsNone(definition_line("print(x)", 0, 6))
 
 
 class TestServerRoundTrip(unittest.TestCase):

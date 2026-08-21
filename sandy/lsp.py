@@ -20,9 +20,36 @@ from . import nodes as N
 from .errors import SandyError, LexError, ParseError
 from .lexer import tokenize
 from .parser import parse
+from .tokens import TokenType
 from .typecheck import TypeChecker
 from .formatter import format_source
 from .builtins import BUILTIN_NAMES
+
+# One-line signatures shown on hover for builtins.
+BUILTIN_SIGS = {
+    "print": "print(...) — print values, then a newline",
+    "input": "input(prompt?) -> string",
+    "len": "len(x) -> int — length of a string, list, or map",
+    "type": "type(x) -> string — the value's type name",
+    "str": "str(x) -> string", "int": "int(x) -> int",
+    "float": "float(x) -> float", "bool": "bool(x) -> bool",
+    "range": "range(n) / range(a, b) / range(a, b, step) -> list",
+    "abs": "abs(x) -> number", "min": "min(list) -> value",
+    "max": "max(list) -> value", "sum": "sum(list) -> number",
+    "round": "round(x, ndigits?) -> number", "pow": "pow(a, b) -> number",
+    "sqrt": "sqrt(x) -> float", "floor": "floor(x) -> int",
+    "ceil": "ceil(x) -> int",
+    "push": "push(list, x) -> list", "pop": "pop(list) -> value",
+    "keys": "keys(map) -> list", "values": "values(map) -> list",
+    "has": "has(container, x) -> bool",
+    "upper": "upper(s) -> string", "lower": "lower(s) -> string",
+    "trim": "trim(s) -> string", "split": "split(s, sep?) -> list",
+    "join": "join(list, sep) -> string",
+    "read_file": "read_file(path) -> string",
+    "read_lines": "read_lines(path) -> list",
+    "write_file": "write_file(path, text)",
+    "append_file": "append_file(path, text)",
+}
 
 _SEVERITY_ERROR = 1
 
@@ -150,6 +177,126 @@ def _uri_to_path(uri):
     return uri
 
 
+# ---- hover and go-to-definition (position-based, via token positions) ----
+
+def _safe_parse(text):
+    try:
+        return parse(tokenize(text))
+    except SandyError:
+        return None
+
+
+def _ident_at(text, line, character):
+    """The identifier token at a 0-based (line, character), or None."""
+    try:
+        toks = tokenize(text)
+    except SandyError:
+        return None
+    tl, tc = line + 1, character + 1
+    for t in toks:
+        if t.type == TokenType.IDENT and t.line == tl:
+            if t.col <= tc <= t.col + len(t.value):
+                return t
+    return None
+
+
+def _func_sig(fn):
+    params = [f"{p}: {a}" if a else p
+              for p, a in zip(fn.params, fn.param_types)]
+    sig = f"fn {fn.name}(" + ", ".join(params) + ")"
+    return sig + (f" -> {fn.ret_type}" if fn.ret_type else "")
+
+
+def _struct_sig(sd):
+    fields = [f"{f}: {a}" if a else f
+              for f, a in zip(sd.fields, sd.field_types)]
+    return f"struct {sd.name} {{ " + ", ".join(fields) + " }"
+
+
+def _walk_blocks(block):
+    """Yield every Block nested inside `block` (including itself)."""
+    yield block
+    for stmt in block.statements:
+        t = type(stmt)
+        if t is N.FuncDef:
+            yield from _walk_blocks(stmt.body)
+        elif t is N.If:
+            for _, b in stmt.branches:
+                yield from _walk_blocks(b)
+            if stmt.else_block is not None:
+                yield from _walk_blocks(stmt.else_block)
+        elif t in (N.While, N.For):
+            yield from _walk_blocks(stmt.body)
+        elif t is N.Try:
+            yield from _walk_blocks(stmt.body)
+            yield from _walk_blocks(stmt.handler)
+
+
+def _definitions(program):
+    """name -> (kind, line, detail) for functions, structs, and variables."""
+    defs = {}
+    for block in _walk_blocks(program):
+        for stmt in block.statements:
+            t = type(stmt)
+            if t is N.FuncDef:
+                defs.setdefault(stmt.name, ("function", stmt.line, _func_sig(stmt)))
+            elif t is N.StructDef:
+                defs.setdefault(stmt.name, ("struct", stmt.line, _struct_sig(stmt)))
+            elif t is N.Assign and isinstance(stmt.target, N.Identifier):
+                defs.setdefault(stmt.target.name,
+                                ("variable", stmt.line, stmt.target.name))
+    return defs
+
+
+def _enclosing_function(program, line):
+    """The innermost FuncDef whose body spans a 1-based line, or None."""
+    best = None
+    for block in _walk_blocks(program):
+        for stmt in block.statements:
+            if type(stmt) is N.FuncDef:
+                end = stmt.body.end_line or stmt.line
+                if stmt.line <= line <= end:
+                    if best is None or stmt.line >= best.line:
+                        best = stmt
+    return best
+
+
+def hover_info(text, line, character):
+    """A short signature/description for the identifier at a position."""
+    tok = _ident_at(text, line, character)
+    if tok is None:
+        return None
+    name = tok.value
+    program = _safe_parse(text)
+    if program is not None:
+        fn = _enclosing_function(program, line + 1)
+        if fn is not None:
+            for p, a in zip(fn.params, fn.param_types):
+                if p == name:
+                    return f"(parameter) {name}" + (f": {a}" if a else "")
+        detail = _definitions(program).get(name)
+        if detail is not None:
+            kind, _, text_detail = detail
+            return text_detail if kind != "variable" else f"(variable) {name}"
+    return BUILTIN_SIGS.get(name)
+
+
+def definition_line(text, line, character):
+    """The 1-based line where the identifier at a position is defined, or None."""
+    tok = _ident_at(text, line, character)
+    if tok is None:
+        return None
+    program = _safe_parse(text)
+    if program is None:
+        return None
+    name = tok.value
+    fn = _enclosing_function(program, line + 1)
+    if fn is not None and name in fn.params:
+        return fn.line
+    detail = _definitions(program).get(name)
+    return detail[1] if detail is not None else None
+
+
 # ---- stdio JSON-RPC server ----
 
 class Server:
@@ -203,6 +350,8 @@ class Server:
                 "textDocumentSync": 1,   # full document sync
                 "documentFormattingProvider": True,
                 "documentSymbolProvider": True,
+                "hoverProvider": True,
+                "definitionProvider": True,
                 "completionProvider": {"triggerCharacters": ["."]},
             }, "serverInfo": {"name": "sandy-lsp"}})
         elif method == "shutdown":
@@ -230,8 +379,32 @@ class Server:
         elif method == "textDocument/documentSymbol":
             self._respond(id_, document_symbols(
                 self.docs.get(params["textDocument"]["uri"], "")))
+        elif method == "textDocument/hover":
+            self._respond(id_, self._hover(params))
+        elif method == "textDocument/definition":
+            self._respond(id_, self._definition(params))
         elif id_ is not None:
             self._respond(id_, None)   # unknown request: don't hang the client
+
+    def _hover(self, params):
+        text = self.docs.get(params["textDocument"]["uri"], "")
+        pos = params["position"]
+        info = hover_info(text, pos["line"], pos["character"])
+        if info is None:
+            return None
+        return {"contents": {"kind": "markdown",
+                             "value": "```sandy\n" + info + "\n```"}}
+
+    def _definition(self, params):
+        uri = params["textDocument"]["uri"]
+        pos = params["position"]
+        line = definition_line(self.docs.get(uri, ""), pos["line"],
+                               pos["character"])
+        if line is None:
+            return None
+        rng = {"start": {"line": line - 1, "character": 0},
+               "end": {"line": line - 1, "character": 0}}
+        return {"uri": uri, "range": rng}
 
     def _publish(self, uri):
         base_dir = os.path.dirname(_uri_to_path(uri)) or None

@@ -174,7 +174,10 @@ Turn Sandy into real machine code and single-file binaries.
       guarded against drift by a test.
 - [x] Syntax highlighting: a TextMate grammar + VS Code extension in
       `editors/vscode/`; keyword/builtin lists kept in sync by a test.
-- [ ] Debugger, docs generator, a richer LSP (hover, go-to-definition)
+- [x] Richer LSP: hover (function/struct/parameter/builtin signatures) and
+      go-to-definition, resolved from token positions + the AST (scope-aware
+      for parameters via block end-lines).
+- [ ] Debugger, docs generator, find-references / rename
 
 ---
 

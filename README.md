@@ -518,6 +518,8 @@ Sandy ships a language server (`sandy lsp`, LSP over stdio) that reuses the
 same lexer, parser, type checker, and formatter. It provides:
 
 - **diagnostics** — syntax and type errors as you type
+- **hover** — signatures for functions, structs, parameters, and builtins
+- **go-to-definition** — jump to where a name is defined
 - **formatting** — the same canonical output as `sandy fmt`
 - **completion** — keywords, builtins, and the file's own definitions
 - **outline** — functions, structs, and top-level variables
