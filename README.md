@@ -19,9 +19,12 @@ $ sandy hello.sy
 Hello, Sandy!
 ```
 
-This repository contains the reference interpreter for Sandy, written in
-Python. It's a clean tree-walking interpreter: a lexer, a parser, and an
-evaluator — easy to read, easy to extend.
+This repository contains the reference implementation of Sandy, written in
+Python: a tree-walking interpreter, a bytecode VM, a gradual type checker, and
+a native (C) backend for the typed subset.
+
+📖 For the precise grammar, semantics, and type-system rules, see the
+**[Language Reference](docs/reference.md)**. This README is the guided tour.
 
 ---
 
