@@ -68,6 +68,7 @@ THROW = 75              # raise a Sandy error with the message on the stack
 
 SET_ATTR = 76           # arg = field name; pop value, obj; set obj.field
 DUP_TOP = 77            # duplicate the top of the stack
+IMPORT = 78             # arg = module path string; push the loaded Module
 
 OPNAMES = {v: k for k, v in list(globals().items()) if isinstance(v, int)}
 

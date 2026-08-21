@@ -190,3 +190,10 @@ class StructDef(Node):
     def __init__(self, name, fields, field_types, line):
         self.name = name; self.fields = fields
         self.field_types = field_types; self.line = line
+
+
+class Import(Node):
+    # path: source string; alias: local name bound to the module
+    __slots__ = ("path", "alias", "line")
+    def __init__(self, path, alias, line):
+        self.path = path; self.alias = alias; self.line = line

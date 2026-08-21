@@ -185,6 +185,32 @@ class TestErrors(unittest.TestCase):
         with self.assertRaises(RuntimeErrorSandy):
             run("a = [1]\nprint(a[5])")
 
+    def test_module_import(self):
+        import tempfile
+        from sandy.runtime import run_source_vm
+        d = tempfile.mkdtemp()
+        with open(os.path.join(d, "lib.sy"), "w", encoding="utf-8") as f:
+            f.write("gain = 10\nfn boost(n) { return n + gain }\n"
+                    "struct Pair { a, b }\n")
+        main = ('import "lib.sy" as lib\nprint(lib.boost(5))\n'
+                'p = lib.Pair(1, 2)\nprint(p.a + p.b)\nprint(lib.gain)')
+        o1 = io.StringIO()
+        run_source(main, Interpreter(out=o1), base_dir=d)
+        self.assertEqual(o1.getvalue(), "15\n3\n10\n")
+        # The VM must produce identical output.
+        o2 = io.StringIO()
+        run_source_vm(main, out=o2, base_dir=d)
+        self.assertEqual(o2.getvalue(), o1.getvalue())
+
+    def test_import_missing_module(self):
+        try:
+            run_source('import "does_not_exist.sy" as m', Interpreter(),
+                       base_dir="/tmp")
+        except RuntimeErrorSandy as e:
+            self.assertIn("cannot import", e.message)
+        else:
+            self.fail("expected RuntimeErrorSandy")
+
     def test_struct_basics(self):
         out = run('struct Point { x, y }\np = Point(3, 4)\n'
                   'print(p)\nprint(p.x)\np.y = 9\nprint(p.y)')

@@ -67,6 +67,18 @@ class StructInstance:
         return to_str(self)
 
 
+class Module:
+    """An imported Sandy module: a named namespace of top-level bindings."""
+    __slots__ = ("name", "namespace")
+
+    def __init__(self, name, namespace):
+        self.name = name
+        self.namespace = namespace   # dict name -> value
+
+    def __repr__(self):
+        return f"<module '{self.name}'>"
+
+
 def type_name(value):
     if value is None:
         return "nil"
@@ -86,6 +98,8 @@ def type_name(value):
         return value.struct.name
     if isinstance(value, StructType):
         return "struct"
+    if isinstance(value, Module):
+        return "module"
     if isinstance(value, (Function, BuiltinFunction)):
         return "function"
     return "unknown"

@@ -1,0 +1,13 @@
+# A reusable module. Its top-level definitions become the module's members.
+
+pi = 3.14159
+
+struct Circle { radius }
+
+fn area(c) {
+    return pi * c.radius * c.radius
+}
+
+fn circumference(c) {
+    return 2 * pi * c.radius
+}

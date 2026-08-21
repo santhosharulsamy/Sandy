@@ -161,7 +161,10 @@ class TypeChecker:
             self._check_block(node.handler, scope, expected_ret)
         elif t is N.Throw:
             self._infer(node.value, scope)
-        # Break / Continue: nothing to check
+        elif t is N.Import:
+            # Imported modules are dynamic; their members are `any`.
+            scope.define(node.alias, "any")
+        # Break / Continue / StructDef: nothing to check statically yet
 
     def _check_assign(self, node, scope):
         value_t = self._infer(node.value, scope)

@@ -24,6 +24,7 @@ class TokenType:
     CATCH = "CATCH"
     THROW = "THROW"
     STRUCT = "STRUCT"
+    IMPORT = "IMPORT"
     TRUE = "TRUE"
     FALSE = "FALSE"
     NIL = "NIL"
@@ -81,6 +82,7 @@ KEYWORDS = {
     "catch": TokenType.CATCH,
     "throw": TokenType.THROW,
     "struct": TokenType.STRUCT,
+    "import": TokenType.IMPORT,
     "true": TokenType.TRUE,
     "false": TokenType.FALSE,
     "nil": TokenType.NIL,

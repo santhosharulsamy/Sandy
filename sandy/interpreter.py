@@ -1,13 +1,18 @@
 """Tree-walking evaluator for Sandy."""
 
+import os
+
 from .errors import RuntimeErrorSandy
 from . import nodes as N
 from .values import (
-    Function, BuiltinFunction, StructType, StructInstance,
+    Function, BuiltinFunction, StructType, StructInstance, Module,
     is_truthy, type_name, to_str,
 )
 from .builtins import make_builtins
 from .suggest import closest_name
+
+# Sentinel marking a module that is mid-load (used to detect circular imports).
+_LOADING = object()
 
 
 # -- control-flow signals (not user errors) --
@@ -70,7 +75,14 @@ class Interpreter:
         self.globals = Environment()
         for name, fn in make_builtins(self).items():
             self.globals.define(name, fn)
+        self._builtin_names = set(self.globals.vars)  # to filter module exports
         self.out = out  # optional writer override for print (tests)
+        self.base_dir = None       # directory for resolving relative imports
+        self.module_cache = {}     # abspath -> Module (shared across imports)
+
+    def user_names(self):
+        """Top-level names defined by user code (excludes builtins)."""
+        return [k for k in self.globals.vars if k not in self._builtin_names]
 
     # -- public API --
     def run(self, program):
@@ -200,6 +212,60 @@ class Interpreter:
         env.define(node.name,
                    StructType(node.name, node.fields, node.field_types))
 
+    def _exec_import(self, node, env):
+        abspath = self._resolve_import(node.path, node.line)
+        env.define(node.alias, self._load_module(abspath, node.line))
+
+    def _resolve_import(self, path, line):
+        p = path if path.endswith(".sy") else path + ".sy"
+        base = self.base_dir or os.getcwd()
+        return os.path.abspath(os.path.join(base, p))
+
+    def _load_module(self, abspath, line):
+        cache = self.module_cache
+        cached = cache.get(abspath)
+        if cached is _LOADING:
+            raise RuntimeErrorSandy(
+                f"circular import while loading {os.path.basename(abspath)}", line)
+        if cached is not None:
+            return cached
+        try:
+            with open(abspath, "r", encoding="utf-8") as f:
+                source = f.read()
+        except OSError as e:
+            raise RuntimeErrorSandy(
+                f"cannot import {abspath!r}: {e.strerror}", line)
+        cache[abspath] = _LOADING
+        # Modules run on the tree-walker in a fresh scope, sharing the cache so
+        # a module imported twice (or via a diamond) is executed only once.
+        from .lexer import tokenize
+        from .parser import parse
+        sub = Interpreter(out=self.out)
+        sub.base_dir = os.path.dirname(abspath)
+        sub.module_cache = cache
+        try:
+            sub.run(parse(tokenize(source)))
+        except BaseException:
+            cache.pop(abspath, None)   # don't cache a half-loaded module
+            raise
+        name = os.path.splitext(os.path.basename(abspath))[0]
+        ns = {n: sub.globals.vars[n] for n in sub.user_names()}
+        module = Module(name, ns)
+        cache[abspath] = module
+        return module
+
+    def _get_attr(self, obj, name, line):
+        """Attribute access: struct fields, module members, else a method."""
+        if isinstance(obj, StructInstance):
+            return self._get_field(obj, name, line)
+        if isinstance(obj, Module):
+            if name in obj.namespace:
+                return obj.namespace[name]
+            raise RuntimeErrorSandy(
+                f"module '{obj.name}' has no member '{name}'", line)
+        from .builtins import resolve_method
+        return resolve_method(self, obj, name, line)
+
     # -- expression evaluation --
     def _eval(self, node, env):
         method = self._EXPR_DISPATCH.get(type(node))
@@ -287,11 +353,7 @@ class Interpreter:
 
     def _eval_attribute(self, node, env):
         target = self._eval(node.target, env)
-        # Struct field access takes precedence over method resolution.
-        if isinstance(target, StructInstance):
-            return self._get_field(target, node.name, node.line)
-        from .builtins import resolve_method
-        return resolve_method(self, target, node.name, node.line)
+        return self._get_attr(target, node.name, node.line)
 
     def _construct(self, struct, args, line):
         if len(args) != len(struct.fields):
@@ -494,6 +556,7 @@ Interpreter._STMT_DISPATCH = {
     N.Try: Interpreter._exec_try,
     N.Throw: Interpreter._exec_throw,
     N.StructDef: Interpreter._exec_structdef,
+    N.Import: Interpreter._exec_import,
 }
 
 Interpreter._EXPR_DISPATCH = {

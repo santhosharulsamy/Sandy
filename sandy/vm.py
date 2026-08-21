@@ -14,9 +14,8 @@ hottest paths are found after the fewest comparisons.
 
 from .errors import RuntimeErrorSandy
 from .interpreter import Interpreter, Environment
-from .values import (BuiltinFunction, StructType, StructInstance,
+from .values import (BuiltinFunction, Function, StructType, StructInstance,
                      is_truthy, to_str, type_name)
-from .builtins import resolve_method
 from . import bytecode as B
 
 _SENTINEL = object()
@@ -201,6 +200,9 @@ class VM:
                         push(callee.fn(args, lines[ip - 1]))
                     elif tc is StructType:
                         push(rt._construct(callee, args, lines[ip - 1]))
+                    elif tc is Function:
+                        # Imported (tree-walked) functions run on the interpreter.
+                        push(rt.call(callee, args, lines[ip - 1]))
                     else:
                         raise RuntimeErrorSandy(
                             f"'{type_name(callee)}' value is not callable",
@@ -326,11 +328,10 @@ class VM:
                         raise RuntimeErrorSandy(
                             f"cannot negate a {type_name(a)}", lines[ip - 1])
                 elif op == B.GET_ATTR:
-                    target = stack.pop()
-                    if type(target) is StructInstance:
-                        push(rt._get_field(target, arg, lines[ip - 1]))
-                    else:
-                        push(resolve_method(rt, target, arg, lines[ip - 1]))
+                    push(rt._get_attr(stack.pop(), arg, lines[ip - 1]))
+                elif op == B.IMPORT:
+                    abspath = rt._resolve_import(arg, lines[ip - 1])
+                    push(rt._load_module(abspath, lines[ip - 1]))
                 elif op == B.SET_ATTR:
                     val = stack.pop(); obj = stack.pop()
                     rt._set_field(obj, arg, val, lines[ip - 1])

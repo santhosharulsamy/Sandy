@@ -228,6 +228,31 @@ print(type(p))               # Point
 print(Point(1, 2) == Point(1, 2))   # true — equality is by value
 ```
 
+### Modules
+
+Split a program across files. `import` runs another `.sy` file once and binds
+its top-level definitions (functions, structs, variables) as a namespaced
+module. Paths resolve **relative to the importing file**, so a program works
+from any working directory.
+
+```sandy
+# geometry.sy
+pi = 3.14159
+struct Circle { radius }
+fn area(c) { return pi * c.radius * c.radius }
+```
+
+```sandy
+# app.sy
+import "geometry.sy" as geo      # or: import "geometry"  (alias -> geometry)
+
+c = geo.Circle(5)
+print(geo.area(c))               # 78.53975
+```
+
+Modules are cached (imported once, even via diamonds) and circular imports
+are detected with a clear error. See [`examples/modules/`](examples/modules).
+
 ### Gradual types (optional)
 
 Sandy is dynamic by default, but you can *optionally* annotate functions and

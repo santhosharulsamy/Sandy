@@ -1,5 +1,6 @@
 """High-level helpers to run Sandy source code."""
 
+import os
 import sys
 
 from .errors import SandyError, LexError, ParseError, RuntimeErrorSandy
@@ -8,23 +9,28 @@ from .parser import parse
 from .interpreter import Interpreter
 
 
-def run_source(source, interp=None, filename="<stdin>"):
+def run_source(source, interp=None, filename="<stdin>", base_dir=None):
     """Lex, parse and evaluate Sandy source with the tree-walking engine.
     Returns the interpreter used. Raises SandyError on a Sandy error."""
     if interp is None:
         interp = Interpreter()
+    if base_dir is not None:
+        interp.base_dir = base_dir
     tokens = tokenize(source)
     program = parse(tokens)
     interp.run(program)
     return interp
 
 
-def run_source_vm(source, out=None):
+def run_source_vm(source, out=None, base_dir=None):
     """Lex, parse, compile and execute Sandy source on the bytecode VM."""
     from .compiler import compile_program
     from .vm import VM
     program = parse(tokenize(source))
-    VM(out=out).run(compile_program(program))
+    vm = VM(out=out)
+    if base_dir is not None:
+        vm.rt.base_dir = base_dir
+    vm.run(compile_program(program))
 
 
 def type_check_source(source):
@@ -109,6 +115,7 @@ def run_file(path, engine="walk", check_types=True):
         print(f"sandy: cannot open {path}: {e.strerror}", file=sys.stderr)
         return 1
 
+    base_dir = os.path.dirname(os.path.abspath(path))
     try:
         if check_types:
             type_errors = type_check_source(source)
@@ -116,9 +123,9 @@ def run_file(path, engine="walk", check_types=True):
                 _report_type_errors(type_errors, path, source)
                 return 1
         if engine == "vm":
-            run_source_vm(source)
+            run_source_vm(source, base_dir=base_dir)
         else:
-            run_source(source, Interpreter(), filename=path)
+            run_source(source, Interpreter(), filename=path, base_dir=base_dir)
     except LexError as e:
         _report(e.format("SyntaxError"), path, e.line, source, e.col)
         return 1

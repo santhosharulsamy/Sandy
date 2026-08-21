@@ -547,6 +547,10 @@ class CBackend:
             raise NativeUnsupported(
                 "structs are not supported by the native backend yet; run "
                 "with the interpreter or `--vm`", getattr(s, "line", None))
+        if t is N.Import:
+            raise NativeUnsupported(
+                "import is not supported by the native backend; run with the "
+                "interpreter or `--vm`", getattr(s, "line", None))
         raise NativeUnsupported(
             f"{type(s).__name__} is not supported in native mode",
             getattr(s, "line", None))

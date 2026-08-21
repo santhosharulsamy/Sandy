@@ -135,7 +135,10 @@ Turn Sandy into real machine code and single-file binaries.
       cross-frame unwinding; the caught value is the error message string).
       Native rejects it as dynamic control flow.
 - [x] File I/O: `read_file`, `read_lines`, `write_file`, `append_file`
-- [ ] Modules / `import` and a project layout
+- [x] Modules: `import "file.sy" as name` — namespaced imports resolved
+      relative to the importing file, run once (cached), with circular-import
+      detection (interpreter + VM; native rejects). Members are functions,
+      structs, and variables accessed as `name.member`.
 - [x] User-defined types: `struct Name { fields }` — construction, `.` field
       access/mutation, value equality, `type()` reporting (interpreter + VM;
       native rejects for now). Static field type-checking is future work.

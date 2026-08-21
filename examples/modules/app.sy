@@ -1,0 +1,21 @@
+# Multi-file programs: import another .sy file as a namespaced module.
+#
+# Run from this directory:  sandy app.sy
+# The path is resolved relative to THIS file, so it works from anywhere.
+
+import "geometry.sy" as geo
+
+c = geo.Circle(5)
+
+print("radius       = {c.radius}")
+print("area         = {geo.area(c)}")
+print("circumference= {geo.circumference(c)}")
+print("pi (module)  = {geo.pi}")
+
+# Members are ordinary values — structs, functions, and variables all work.
+circles = [geo.Circle(1), geo.Circle(2), geo.Circle(3)]
+total = 0.0
+for circle in circles {
+    total += geo.area(circle)
+}
+print("total area of 3 circles = {total}")

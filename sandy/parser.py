@@ -94,6 +94,8 @@ class Parser:
         if t == T.CONTINUE:
             line = self._advance().line
             return N.Continue(line)
+        if t == T.IMPORT:
+            return self._import_stmt()
         if t == T.STRUCT:
             return self._struct_def()
         if t == T.TRY:
@@ -103,6 +105,19 @@ class Parser:
             value = self._expression()
             return N.Throw(value, line)
         return self._assign_or_expr()
+
+    def _import_stmt(self):
+        line = self._advance().line  # 'import'
+        tok = self._expect(T.STRING, "a module path string after 'import'")
+        path = tok.value
+        # Optional `as NAME` (soft keyword); otherwise derive from the filename.
+        if self._check(T.IDENT) and self._cur().value == "as":
+            self._advance()
+            alias = self._expect(T.IDENT, "a module alias after 'as'").value
+        else:
+            base = path.rsplit("/", 1)[-1]
+            alias = base[:-3] if base.endswith(".sy") else base
+        return N.Import(path, alias, line)
 
     def _struct_def(self):
         line = self._advance().line  # 'struct'

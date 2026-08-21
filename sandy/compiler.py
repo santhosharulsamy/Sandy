@@ -260,6 +260,10 @@ class Compiler:
         self._emit(B.LOAD_CONST, self._const(st), node.line)
         self._emit(B.DEFINE_NAME, node.name, node.line)
 
+    def _c_import(self, node):
+        self._emit(B.IMPORT, node.path, node.line)   # pushes the Module
+        self._emit(B.DEFINE_NAME, node.alias, node.line)
+
     # -- expressions --
     def _compile_expr(self, node):
         m = self._EXPR.get(type(node))
@@ -420,6 +424,7 @@ Compiler._STMT = {
     N.Try: Compiler._c_try,
     N.Throw: Compiler._c_throw,
     N.StructDef: Compiler._c_structdef,
+    N.Import: Compiler._c_import,
 }
 
 Compiler._EXPR = {
