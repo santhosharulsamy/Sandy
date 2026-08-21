@@ -165,7 +165,11 @@ Turn Sandy into real machine code and single-file binaries.
       comments and blank lines, with precedence-correct parenthesization;
       `--check` mode; verified idempotent and semantics-preserving.
 - [x] Language reference (`docs/reference.md`): grammar, semantics, type system.
-- [ ] Debugger, docs generator, editor support (LSP)
+- [x] Editor support (LSP): `sandy lsp` speaks LSP over stdio — live
+      diagnostics (syntax + type errors), formatting, completion (keywords,
+      builtins, file definitions), and a symbol outline — reusing the same
+      lexer/parser/checker/formatter.
+- [ ] Debugger, docs generator, a richer LSP (hover, go-to-definition)
 
 ---
 

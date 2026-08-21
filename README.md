@@ -51,6 +51,9 @@ python -m sandy build examples/native.sy --run
 # Format a program in canonical style (comments preserved)
 python -m sandy fmt examples/hello.sy
 
+# Start the language server for your editor (LSP over stdio)
+python -m sandy lsp
+
 # Start the interactive REPL
 python -m sandy
 
@@ -502,6 +505,21 @@ The [`examples/`](examples/) directory has runnable programs:
 ```bash
 python -m sandy examples/data.sy
 ```
+
+---
+
+## Editor support
+
+Sandy ships a language server (`sandy lsp`, LSP over stdio) that reuses the
+same lexer, parser, type checker, and formatter. It provides:
+
+- **diagnostics** — syntax and type errors as you type
+- **formatting** — the same canonical output as `sandy fmt`
+- **completion** — keywords, builtins, and the file's own definitions
+- **outline** — functions, structs, and top-level variables
+
+Point any LSP-capable editor at the command `sandy lsp` for `.sy` files. For
+example, a generic client config just needs `command: "sandy", args: ["lsp"]`.
 
 ---
 

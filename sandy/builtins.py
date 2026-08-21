@@ -10,6 +10,15 @@ import math
 from .errors import RuntimeErrorSandy
 from .values import BuiltinFunction, to_str, type_name, is_truthy
 
+# Names of all global builtins (kept in sync with the @reg registrations in
+# make_builtins below). Used by tooling — completion and the compiler.
+BUILTIN_NAMES = frozenset({
+    "print", "input", "len", "type", "str", "int", "float", "bool", "range",
+    "abs", "min", "max", "sum", "round", "sqrt", "floor", "ceil", "pow",
+    "push", "pop", "keys", "values", "has", "upper", "lower", "trim", "split",
+    "join", "read_file", "read_lines", "write_file", "append_file",
+})
+
 
 def _is_int(v):
     return isinstance(v, int) and not isinstance(v, bool)

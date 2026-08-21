@@ -24,6 +24,7 @@ usage:
   sandy build FILE.sy   compile to a native executable (typed scalar core)
   sandy check FILE.sy   type-check a program without running it
   sandy fmt FILE.sy     format a program in place (--check to just verify)
+  sandy lsp             start the language server (stdio, for editors)
   sandy --vm FILE.sy    run on the bytecode VM engine (experimental, faster)
   sandy --no-check FILE.sy  skip the static type checker
   sandy --version       print the version
@@ -71,6 +72,9 @@ def main(argv=None):
                 files = [f for f in files if f != output]
         return build_file(files[0], output=output,
                           run="--run" in argv, emit_c="--emit-c" in argv)
+    if first == "lsp":
+        from .lsp import main as lsp_main
+        return lsp_main()
     if first == "fmt":
         files = [a for a in argv[1:] if not a.startswith("-")]
         if not files:
