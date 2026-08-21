@@ -409,6 +409,32 @@ print("{{not interpolated}}")           # {not interpolated}
 Any expression works inside `{ }` — arithmetic, function calls, indexing,
 method calls, even nested strings.
 
+### Standard library
+
+Sandy ships with a small standard library, **written in Sandy itself** and
+imported by bare name from anywhere:
+
+```sandy
+import "math" as math
+import "lists" as lists
+
+print(math.gcd(48, 36))              # 12
+print(math.is_prime(97))             # true
+
+fn square(n) { return n * n }
+print(lists.map(square, [1, 2, 3]))  # [1, 4, 9]  — pass your own functions in
+```
+
+| Module | Highlights |
+| --- | --- |
+| `math` | `pi`, `e`, `tau`, `gcd`, `factorial`, `is_prime`, `clamp`, `sign`, `mean` |
+| `strings` | `reverse`, `capitalize`, `repeat`, `pad_left`, `pad_right`, `count`, `contains` |
+| `lists` | `map`, `filter`, `reduce`, `reverse`, `unique`, `contains`, `index_of`, `take`, `drop`, `first`, `last` |
+
+The library lives in [`sandy/stdlib/`](sandy/stdlib) — plain `.sy` files you
+can read to learn the language. A local file of the same name takes precedence,
+so you can shadow or replace any module.
+
 ---
 
 ## Built-in functions

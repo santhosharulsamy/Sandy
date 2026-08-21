@@ -79,6 +79,7 @@ class Interpreter:
         self.out = out  # optional writer override for print (tests)
         self.base_dir = None       # directory for resolving relative imports
         self.module_cache = {}     # abspath -> Module (shared across imports)
+        self.module_loader = None  # engine-specific runner for imported files
 
     def user_names(self):
         """Top-level names defined by user code (excludes builtins)."""
@@ -217,9 +218,16 @@ class Interpreter:
         env.define(node.alias, self._load_module(abspath, node.line))
 
     def _resolve_import(self, path, line):
-        p = path if path.endswith(".sy") else path + ".sy"
+        rel = path if path.endswith(".sy") else path + ".sy"
         base = self.base_dir or os.getcwd()
-        return os.path.abspath(os.path.join(base, p))
+        candidate = os.path.abspath(os.path.join(base, rel))
+        if os.path.exists(candidate):
+            return candidate
+        # Fall back to the bundled standard library for names not found locally.
+        stdlib = os.path.join(os.path.dirname(__file__), "stdlib", rel)
+        if os.path.exists(stdlib):
+            return os.path.abspath(stdlib)
+        return candidate  # _load_module will raise a clear "cannot import"
 
     def _load_module(self, abspath, line):
         cache = self.module_cache
@@ -236,20 +244,18 @@ class Interpreter:
             raise RuntimeErrorSandy(
                 f"cannot import {abspath!r}: {e.strerror}", line)
         cache[abspath] = _LOADING
-        # Modules run on the tree-walker in a fresh scope, sharing the cache so
-        # a module imported twice (or via a diamond) is executed only once.
-        from .lexer import tokenize
-        from .parser import parse
-        sub = Interpreter(out=self.out)
-        sub.base_dir = os.path.dirname(abspath)
-        sub.module_cache = cache
+        # A module runs on the SAME engine as its importer (so callbacks stay
+        # native to that engine), in a fresh scope sharing the cache — a module
+        # imported twice (or via a diamond) executes only once.
+        loader = self.module_loader
+        if loader is None:
+            from .runtime import load_module_interpreted as loader
         try:
-            sub.run(parse(tokenize(source)))
+            ns = loader(source, os.path.dirname(abspath), self.out, cache)
         except BaseException:
             cache.pop(abspath, None)   # don't cache a half-loaded module
             raise
         name = os.path.splitext(os.path.basename(abspath))[0]
-        ns = {n: sub.globals.vars[n] for n in sub.user_names()}
         module = Module(name, ns)
         cache[abspath] = module
         return module

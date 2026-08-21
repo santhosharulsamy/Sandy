@@ -202,6 +202,32 @@ class TestErrors(unittest.TestCase):
         run_source_vm(main, out=o2, base_dir=d)
         self.assertEqual(o2.getvalue(), o1.getvalue())
 
+    def test_stdlib_math(self):
+        out = run('import "math" as m\nprint(m.gcd(48, 36))\n'
+                  'print(m.factorial(5))\nprint(m.is_prime(13))\n'
+                  'print(m.clamp(99, 0, 10))')
+        self.assertEqual(out, "12\n120\ntrue\n10\n")
+
+    def test_stdlib_lists_higher_order(self):
+        # Callbacks defined in the caller, passed into stdlib functions.
+        out = run('import "lists" as ls\nfn dbl(x) { return x * 2 }\n'
+                  'fn odd(x) { return x % 2 == 1 }\n'
+                  'print(ls.map(dbl, [1, 2, 3]))\n'
+                  'print(ls.filter(odd, [1, 2, 3, 4, 5]))\n'
+                  'print(ls.unique([1, 1, 2, 3, 3]))')
+        self.assertEqual(out, "[2, 4, 6]\n[1, 3, 5]\n[1, 2, 3]\n")
+
+    def test_stdlib_higher_order_on_vm(self):
+        # The VM must match the interpreter, including callbacks into stdlib.
+        from sandy.runtime import run_source_vm
+        src = ('import "lists" as ls\nimport "strings" as s\n'
+               'fn inc(x) { return x + 1 }\n'
+               'print(ls.map(inc, [10, 20]))\nprint(s.reverse("abc"))')
+        o1 = io.StringIO(); run_source(src, Interpreter(out=o1))
+        o2 = io.StringIO(); run_source_vm(src, out=o2)
+        self.assertEqual(o1.getvalue(), "[11, 21]\ncba\n")
+        self.assertEqual(o2.getvalue(), o1.getvalue())
+
     def test_import_missing_module(self):
         try:
             run_source('import "does_not_exist.sy" as m', Interpreter(),

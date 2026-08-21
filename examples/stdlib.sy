@@ -1,0 +1,29 @@
+# Using Sandy's standard library.
+#
+# These modules ship with Sandy and are written in Sandy itself. Import them
+# by bare name from anywhere — no path needed.
+
+import "math" as math
+import "strings" as text
+import "lists" as lists
+
+# math: numeric helpers beyond the builtins.
+print("gcd(48, 36)   = {math.gcd(48, 36)}")
+print("7!            = {math.factorial(7)}")
+print("is_prime(97)  = {math.is_prime(97)}")
+print("mean          = {math.mean([10, 20, 30, 40])}")
+
+# strings: text helpers.
+print("reverse       = {text.reverse('Sandy')}")
+print("capitalize    = {text.capitalize('hello world')}")
+print("pad_left      = {text.pad_left('42', 6, '0')}")
+
+# lists: higher-order functions — pass your own functions in.
+fn square(n) { return n * n }
+fn positive(n) { return n > 0 }
+
+nums = [-2, -1, 0, 1, 2, 3]
+print("squares       = {lists.map(square, nums)}")
+print("positives     = {lists.filter(positive, nums)}")
+print("sum via reduce= {lists.reduce(math.gcd, 0, [12, 18, 24])}")
+print("unique        = {lists.unique([1, 1, 2, 3, 3, 3])}")

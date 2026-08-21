@@ -379,5 +379,7 @@ class VM:
 
 def run_program(program, out=None):
     from .compiler import compile_program
-    code = compile_program(program)
-    return VM(out=out).run(code)
+    from .runtime import load_module_vm
+    vm = VM(out=out)
+    vm.rt.module_loader = load_module_vm   # imports run on the VM too
+    return vm.run(compile_program(program))

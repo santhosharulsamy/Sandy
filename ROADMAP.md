@@ -143,7 +143,10 @@ Turn Sandy into real machine code and single-file binaries.
       access/mutation, value equality, `type()` reporting (interpreter + VM;
       native rejects for now). Static field type-checking is future work.
 - [ ] Network I/O
-- [ ] A standard library worth reaching for
+- [x] A standard library, written in Sandy itself: `math`, `strings`, `lists`
+      (higher-order `map`/`filter`/`reduce`), imported by bare name. Ships in
+      `sandy/stdlib/`; a local file of the same name shadows it. Modules run on
+      the importer's engine, so callbacks stay native (works on both).
 
 ### Stage 6 — Scale & ecosystem 🎈💛
 - [ ] Concurrency model (simple, safe — the Go lane done right)

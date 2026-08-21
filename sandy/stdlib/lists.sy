@@ -1,0 +1,95 @@
+# Sandy standard library: list helpers, including higher-order functions.
+#
+#     import "lists" as lists
+#     fn double(x) { return x * 2 }
+#     print(lists.map(double, [1, 2, 3]))     # [2, 4, 6]
+
+fn map(f, items) {
+    out = []
+    for x in items {
+        push(out, f(x))
+    }
+    return out
+}
+
+fn filter(pred, items) {
+    out = []
+    for x in items {
+        if pred(x) {
+            push(out, x)
+        }
+    }
+    return out
+}
+
+fn reduce(f, acc, items) {
+    for x in items {
+        acc = f(acc, x)
+    }
+    return acc
+}
+
+fn reverse(items) {
+    out = []
+    for x in items {
+        out = [x] + out
+    }
+    return out
+}
+
+fn contains(items, target) {
+    for x in items {
+        if x == target { return true }
+    }
+    return false
+}
+
+fn index_of(items, target) {
+    i = 0
+    for x in items {
+        if x == target { return i }
+        i += 1
+    }
+    return -1
+}
+
+fn unique(items) {
+    out = []
+    for x in items {
+        if not contains(out, x) {
+            push(out, x)
+        }
+    }
+    return out
+}
+
+fn take(items, n) {
+    out = []
+    i = 0
+    for x in items {
+        if i >= n { break }
+        push(out, x)
+        i += 1
+    }
+    return out
+}
+
+fn drop(items, n) {
+    out = []
+    i = 0
+    for x in items {
+        if i >= n { push(out, x) }
+        i += 1
+    }
+    return out
+}
+
+fn first(items) {
+    if len(items) == 0 { throw "first of an empty list" }
+    return items[0]
+}
+
+fn last(items) {
+    if len(items) == 0 { throw "last of an empty list" }
+    return items[len(items) - 1]
+}

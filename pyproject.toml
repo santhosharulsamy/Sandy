@@ -16,3 +16,7 @@ sandy = "sandy.cli:main"
 
 [tool.setuptools]
 packages = ["sandy"]
+
+[tool.setuptools.package-data]
+# Ship the standard-library modules (written in Sandy) with the package.
+sandy = ["stdlib/*.sy"]

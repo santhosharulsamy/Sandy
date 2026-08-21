@@ -9,6 +9,28 @@ from .parser import parse
 from .interpreter import Interpreter
 
 
+def load_module_interpreted(source, base_dir, out, cache):
+    """Run an imported module on the tree-walker; return its exported names."""
+    interp = Interpreter(out=out)
+    interp.base_dir = base_dir
+    interp.module_cache = cache
+    interp.module_loader = load_module_interpreted
+    interp.run(parse(tokenize(source)))
+    return {n: interp.globals.vars[n] for n in interp.user_names()}
+
+
+def load_module_vm(source, base_dir, out, cache):
+    """Run an imported module on the bytecode VM; return its exported names."""
+    from .compiler import compile_program
+    from .vm import VM
+    vm = VM(out=out)
+    vm.rt.base_dir = base_dir
+    vm.rt.module_cache = cache
+    vm.rt.module_loader = load_module_vm
+    vm.run(compile_program(parse(tokenize(source))))
+    return {n: vm.rt.globals.vars[n] for n in vm.rt.user_names()}
+
+
 def run_source(source, interp=None, filename="<stdin>", base_dir=None):
     """Lex, parse and evaluate Sandy source with the tree-walking engine.
     Returns the interpreter used. Raises SandyError on a Sandy error."""
@@ -16,6 +38,7 @@ def run_source(source, interp=None, filename="<stdin>", base_dir=None):
         interp = Interpreter()
     if base_dir is not None:
         interp.base_dir = base_dir
+    interp.module_loader = load_module_interpreted
     tokens = tokenize(source)
     program = parse(tokens)
     interp.run(program)
@@ -30,6 +53,7 @@ def run_source_vm(source, out=None, base_dir=None):
     vm = VM(out=out)
     if base_dir is not None:
         vm.rt.base_dir = base_dir
+    vm.rt.module_loader = load_module_vm
     vm.run(compile_program(program))
 
 
