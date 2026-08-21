@@ -48,6 +48,9 @@ python -m sandy --vm examples/fib.sy
 # Compile a typed program to a native executable (needs a C compiler)
 python -m sandy build examples/native.sy --run
 
+# Format a program in canonical style (comments preserved)
+python -m sandy fmt examples/hello.sy
+
 # Start the interactive REPL
 python -m sandy
 

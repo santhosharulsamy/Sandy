@@ -161,7 +161,11 @@ Turn Sandy into real machine code and single-file binaries.
 - [ ] Concurrency model (simple, safe — the Go lane done right)
 - [ ] Package manager + registry
 - [ ] Editor support (LSP): completion, go-to-def, inline errors
-- [ ] Formatter, debugger, docs generator
+- [x] Formatter (`sandy fmt`): canonical pretty-printer that preserves
+      comments and blank lines, with precedence-correct parenthesization;
+      `--check` mode; verified idempotent and semantics-preserving.
+- [x] Language reference (`docs/reference.md`): grammar, semantics, type system.
+- [ ] Debugger, docs generator, editor support (LSP)
 
 ---
 

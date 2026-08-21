@@ -30,7 +30,7 @@ for n in [16, 9, -4, 25] {
 
 # Errors propagate up through function calls until a try catches them.
 fn parse_amount(text) {
-    n = int(text)          # int() throws if the text isn't a number
+    n = int(text)  # int() throws if the text isn't a number
     if n < 0 {
         throw "amount cannot be negative"
     }

@@ -12,10 +12,12 @@ print("Shouting: {name.upper()}")
 print("2 + 3 * 4 = {2 + 3 * 4}")
 
 # Indexing and calls are fine too.
-scores = { "math": 90, "art": 78 }
+scores = {"math": 90, "art": 78}
 print("Math score: {scores["math"]}")
 
-fn square(n) { return n * n }
+fn square(n) {
+    return n * n
+}
 print("7 squared is {square(7)}")
 
 # Use {{ and }} for literal braces.

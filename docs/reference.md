@@ -406,6 +406,7 @@ sandy FILE.sy         run a program (tree-walker)
 sandy run FILE.sy     run a program (explicit)
 sandy --vm FILE.sy    run on the bytecode VM
 sandy check FILE.sy   type-check without running
+sandy fmt FILE.sy     format in place (--check to only verify)
 sandy build FILE.sy   compile the typed subset to a native executable
 sandy --no-check …    skip the static type checker
 sandy --version       print the version

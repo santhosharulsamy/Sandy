@@ -1,11 +1,7 @@
 # Lists, maps, methods and higher-order functions in Sandy.
 
 # A list of maps.
-people = [
-    { "name": "Ada",   "age": 36 },
-    { "name": "Alan",  "age": 41 },
-    { "name": "Grace", "age": 29 },
-]
+people = [{"name": "Ada", "age": 36}, {"name": "Alan", "age": 41}, {"name": "Grace", "age": 29}]
 
 print("Everyone:")
 for person in people {
@@ -14,8 +10,8 @@ for person in people {
 
 # Method-style calls work on strings, lists and maps.
 name = "sandy"
-print(name.upper())               # SANDY
-print("a,b,c".split(","))         # ["a", "b", "c"]
+print(name.upper())  # SANDY
+print("a,b,c".split(","))  # ["a", "b", "c"]
 
 # Filter with a helper function.
 fn older_than(list, limit) {
@@ -31,6 +27,6 @@ fn older_than(list, limit) {
 print("Older than 30: " + join(older_than(people, 30), ", "))
 
 # Maps: keys, values, membership.
-scores = { "math": 90, "art": 78 }
+scores = {"math": 90, "art": 78}
 print("Subjects: " + join(scores.keys(), ", "))
 print("Has math? " + str(scores.has("math")))

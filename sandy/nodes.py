@@ -119,9 +119,10 @@ class Assign(Node):
 
 
 class Block(Node):
-    __slots__ = ("statements",)
-    def __init__(self, statements):
+    __slots__ = ("statements", "end_line")
+    def __init__(self, statements, end_line=None):
         self.statements = statements
+        self.end_line = end_line   # source line of the closing '}' (for tooling)
 
 
 class If(Node):
@@ -186,10 +187,11 @@ class Throw(Node):
 
 class StructDef(Node):
     # fields: list of field names; field_types: aligned list (str or None)
-    __slots__ = ("name", "fields", "field_types", "line")
-    def __init__(self, name, fields, field_types, line):
+    __slots__ = ("name", "fields", "field_types", "line", "end_line")
+    def __init__(self, name, fields, field_types, line, end_line=None):
         self.name = name; self.fields = fields
         self.field_types = field_types; self.line = line
+        self.end_line = end_line
 
 
 class Import(Node):

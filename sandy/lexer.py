@@ -46,6 +46,7 @@ class Lexer:
         self.line_start = 0   # index in src where the current line begins
         self.tok_start = 0    # index where the token being scanned begins
         self.tokens = []
+        self.comments = {}    # line number -> comment text (for tooling)
 
     def error(self, msg):
         raise LexError(msg, self.line, self.pos - self.line_start + 1)
@@ -72,8 +73,10 @@ class Lexer:
 
             # Comments run to end of line.
             if c == "#":
+                start = self.pos
                 while self.pos < n and src[self.pos] != "\n":
                     self.pos += 1
+                self.comments[self.line] = src[start:self.pos].rstrip()
                 continue
 
             if c == "\n":
@@ -314,3 +317,10 @@ class Lexer:
 
 def tokenize(source):
     return Lexer(source).tokenize()
+
+
+def scan_comments(source):
+    """Return {line_number: comment_text} for a source string (for tooling)."""
+    lx = Lexer(source)
+    lx.tokenize()
+    return lx.comments

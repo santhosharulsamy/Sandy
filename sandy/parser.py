@@ -130,8 +130,9 @@ class Parser:
             field_types.append(self._opt_type_annotation())
             self._match(T.COMMA)   # comma between fields is optional
             self._skip_newlines()
+        end_line = self._cur().line
         self._expect(T.RBRACE, "'}'")
-        return N.StructDef(name, fields, field_types, line)
+        return N.StructDef(name, fields, field_types, line, end_line)
 
     def _try_stmt(self):
         line = self._advance().line  # 'try'
@@ -149,8 +150,9 @@ class Parser:
         while not self._check(T.RBRACE) and not self._check(T.EOF):
             statements.append(self._statement())
             self._skip_newlines()
+        end_line = self._cur().line
         self._expect(T.RBRACE, "'}'")
-        return N.Block(statements)
+        return N.Block(statements, end_line)
 
     def _func_def(self):
         line = self._advance().line  # 'fn'

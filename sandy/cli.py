@@ -23,6 +23,7 @@ usage:
   sandy run FILE.sy     run a Sandy program (explicit)
   sandy build FILE.sy   compile to a native executable (typed scalar core)
   sandy check FILE.sy   type-check a program without running it
+  sandy fmt FILE.sy     format a program in place (--check to just verify)
   sandy --vm FILE.sy    run on the bytecode VM engine (experimental, faster)
   sandy --no-check FILE.sy  skip the static type checker
   sandy --version       print the version
@@ -70,6 +71,12 @@ def main(argv=None):
                 files = [f for f in files if f != output]
         return build_file(files[0], output=output,
                           run="--run" in argv, emit_c="--emit-c" in argv)
+    if first == "fmt":
+        files = [a for a in argv[1:] if not a.startswith("-")]
+        if not files:
+            print("sandy: 'fmt' needs a file argument", file=sys.stderr)
+            return 2
+        return fmt_files(files, check="--check" in argv)
     if first == "check":
         if len(argv) < 2:
             print("sandy: 'check' needs a file argument", file=sys.stderr)
@@ -83,6 +90,36 @@ def main(argv=None):
 
     # Otherwise treat the first argument as a filename.
     return run_file(first, engine=engine, check_types=check_types)
+
+
+def fmt_files(paths, check=False):
+    """Format each file in place, or with --check verify they are formatted."""
+    from .formatter import format_source
+    from .errors import SandyError
+    rc = 0
+    for path in paths:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                source = f.read()
+        except OSError as e:
+            print(f"sandy: cannot open {path}: {e.strerror}", file=sys.stderr)
+            rc = 1
+            continue
+        try:
+            formatted = format_source(source)
+        except SandyError as e:
+            print(f"{path}: {e.format('SyntaxError')}", file=sys.stderr)
+            rc = 1
+            continue
+        if check:
+            if formatted != source:
+                print(f"{path}: not formatted")
+                rc = 1
+        elif formatted != source:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(formatted)
+            print(f"formatted {path}")
+    return rc
 
 
 def check_only(path):

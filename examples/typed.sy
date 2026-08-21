@@ -35,7 +35,10 @@ print(describe([1, 2, 3]))
 
 # Typed structs: the checker knows each field's type, so a wrong field name
 # or a wrong-typed value is caught before the program runs.
-struct Point { x: int, y: int }
+struct Point {
+    x: int
+    y: int
+}
 
 fn manhattan(a: Point, b: Point) -> int {
     return abs(a.x - b.x) + abs(a.y - b.y)

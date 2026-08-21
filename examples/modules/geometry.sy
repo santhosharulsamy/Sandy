@@ -2,7 +2,9 @@
 
 pi = 3.14159
 
-struct Circle { radius }
+struct Circle {
+    radius
+}
 
 fn area(c) {
     return pi * c.radius * c.radius
