@@ -73,6 +73,48 @@ class TestCatchesRealBugs(unittest.TestCase):
         msgs = messages('fn f(a: int, b: string) -> bool { return a < b }')
         self.assertTrue(any("cannot compare" in m for m in msgs))
 
+    def test_struct_unknown_field(self):
+        msgs = messages('struct Point { x: int, y: int }\n'
+                        'p: Point = Point(1, 2)\nprint(p.z)')
+        self.assertTrue(any("has no field 'z'" in m for m in msgs))
+
+    def test_struct_field_type_mismatch(self):
+        msgs = messages('struct Point { x: int, y: int }\np = Point("a", 2)')
+        self.assertTrue(any("field 'x' of Point expects int" in m for m in msgs))
+
+    def test_struct_arity(self):
+        msgs = messages('struct Point { x, y }\np = Point(1)')
+        self.assertTrue(any("expects 2 field" in m for m in msgs))
+
+    def test_struct_field_via_typed_param(self):
+        msgs = messages('struct P { x: int }\n'
+                        'fn f(p: P) -> int { return p.nope }')
+        self.assertTrue(any("has no field 'nope'" in m for m in msgs))
+
+    def test_struct_field_assignment_mismatch(self):
+        msgs = messages('struct P { x: int }\np: P = P(1)\np.x = "no"')
+        self.assertTrue(any("field 'x'" in m for m in msgs))
+
+    def test_unknown_type_name(self):
+        msgs = messages('fn f(w: Widget) -> int { return 1 }')
+        self.assertTrue(any("unknown type 'Widget'" in m for m in msgs))
+
+
+class TestStructsNoFalsePositives(unittest.TestCase):
+    def test_valid_struct_program_is_clean(self):
+        code = ('struct Point { x: int, y: int }\n'
+                'fn sumxy(a: Point, b: Point) -> int {\n'
+                '  return a.x + b.x + a.y + b.y\n}\n'
+                'p: Point = Point(2, 3)\nq: Point = Point(4, 5)\n'
+                'print(sumxy(p, q))\nprint(p.x)')
+        self.assertEqual(errors(code), [])
+
+    def test_unannotated_struct_use_is_clean(self):
+        # Without annotations, struct code stays fully dynamic (no errors).
+        code = ('struct Point { x, y }\np = Point(1, 2)\n'
+                'p.x = 9\nprint(p.x + p.y)')
+        self.assertEqual(errors(code), [])
+
 
 class TestGradualInterop(unittest.TestCase):
     def test_any_is_compatible(self):

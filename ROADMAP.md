@@ -141,7 +141,12 @@ Turn Sandy into real machine code and single-file binaries.
       structs, and variables accessed as `name.member`.
 - [x] User-defined types: `struct Name { fields }` — construction, `.` field
       access/mutation, value equality, `type()` reporting (interpreter + VM;
-      native rejects for now). Static field type-checking is future work.
+      native rejects for now).
+- [x] Static struct type-checking: struct names are valid type annotations
+      (`p: Point`), and the checker verifies construction (arity + field
+      types), field access (`p.z` → unknown field), field assignment, and
+      flags unknown type names — all before the program runs, no false
+      positives on unannotated code.
 - [ ] Network I/O
 - [x] A standard library, written in Sandy itself: `math`, `strings`, `lists`
       (higher-order `map`/`filter`/`reduce`), imported by bare name. Ships in

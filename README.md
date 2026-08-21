@@ -275,10 +275,24 @@ score += add(10, 5)      # fine
 #   add(1, "x")          -> argument 2 of add() expects int, got string
 ```
 
-Type names: `int`, `float`, `string`, `bool`, `nil`, `list`, `map`, and
-`any` (opts out of checking). Anything unannotated is `any`. Lists and maps
-can be parameterized — `list<int>`, `map<string, int>` — so indexing knows the
-element type (e.g. `xs[0] + 1` is flagged when `xs` is a `list<string>`).
+Type names: `int`, `float`, `string`, `bool`, `nil`, `list`, `map`, any
+**struct name**, and `any` (opts out of checking). Anything unannotated is
+`any`. Lists and maps can be parameterized — `list<int>`, `map<string, int>` —
+so indexing knows the element type (e.g. `xs[0] + 1` is flagged when `xs` is a
+`list<string>`).
+
+Struct types are checked too. Given `struct Point { x: int, y: int }`, the
+checker knows each field's type:
+
+```sandy
+fn move(p: Point, dx: int) -> Point { return Point(p.x + dx, p.y) }
+
+# Caught before running:
+#   Point("a", 2)        -> field 'x' of Point expects int, got string
+#   p: Point = Point(1, 2)
+#   p.z                  -> Point has no field 'z'
+#   p.x = "no"           -> cannot assign string to field 'x' of Point
+```
 
 ```bash
 sandy check program.sy      # type-check without running

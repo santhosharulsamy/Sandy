@@ -182,7 +182,9 @@ class Parser:
             self._advance(); return "nil"
         if tok.type == T.FN:
             self._advance(); return "fn"
-        if tok.type == T.IDENT and tok.value in _TYPE_NAMES:
+        if tok.type == T.IDENT:
+            # Any identifier is accepted as a type name here; the type checker
+            # validates it (a primitive, list/map, `any`, or a struct name).
             base = tok.value
             self._advance()
             # Parameterized types: list<T>, map<K, V>
@@ -197,8 +199,7 @@ class Parser:
             return base
         got = tok.value if tok.value is not None else tok.type
         raise ParseError(
-            f"expected a type name (int, float, string, bool, list, map, "
-            f"nil, any), got {got!r}", tok.line, tok.col)
+            f"expected a type name, got {got!r}", tok.line, tok.col)
 
     def _if_stmt(self):
         line = self._advance().line  # 'if'

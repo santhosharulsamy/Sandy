@@ -32,3 +32,15 @@ fn describe(x) {
 
 print(describe(42))
 print(describe([1, 2, 3]))
+
+# Typed structs: the checker knows each field's type, so a wrong field name
+# or a wrong-typed value is caught before the program runs.
+struct Point { x: int, y: int }
+
+fn manhattan(a: Point, b: Point) -> int {
+    return abs(a.x - b.x) + abs(a.y - b.y)
+}
+
+origin: Point = Point(0, 0)
+here: Point = Point(3, 4)
+print("distance = {manhattan(origin, here)}")

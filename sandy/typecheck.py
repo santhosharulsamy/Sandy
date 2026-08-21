@@ -41,9 +41,21 @@ class Scope:
         self.vars[name] = type_
 
 
+class StructDecl:
+    """A struct type known to the checker: field names and their types."""
+    __slots__ = ("name", "fields", "field_types")
+
+    def __init__(self, name, fields, field_types):
+        self.name = name
+        self.fields = fields              # list of field names
+        self.field_types = field_types    # dict field -> normalized type
+
+
 def type_name(t):
     if isinstance(t, FuncType):
         return "function"
+    if isinstance(t, StructDecl):
+        return t.name
     return t if t is not None else "any"
 
 
@@ -91,6 +103,8 @@ def assignable(expected, actual):
         return True
     if expected == "any" or actual == "any":
         return True
+    if isinstance(expected, StructDecl) or isinstance(actual, StructDecl):
+        return True  # struct-type values used as data are gradual
     if isinstance(expected, FuncType) or isinstance(actual, FuncType):
         return isinstance(expected, FuncType) and isinstance(actual, FuncType)
     eb, ab = _base(expected), _base(actual)
@@ -108,6 +122,7 @@ def assignable(expected, actual):
 class TypeChecker:
     def __init__(self):
         self.errors = []  # list of (message, line)
+        self.structs = {}  # struct name -> StructDecl (for field lookups)
 
     def error(self, msg, line):
         self.errors.append((msg, line))
@@ -118,6 +133,15 @@ class TypeChecker:
         return self.errors
 
     # -- statements --
+    def _collect_structs(self, block, scope):
+        for stmt in block.statements:
+            if isinstance(stmt, N.StructDef):
+                ftypes = {f: _norm(t)
+                          for f, t in zip(stmt.fields, stmt.field_types)}
+                decl = StructDecl(stmt.name, list(stmt.fields), ftypes)
+                scope.define(stmt.name, decl)
+                self.structs[stmt.name] = decl
+
     def _collect_functions(self, block, scope):
         """Register function signatures first so recursion and forward
         references type-check."""
@@ -127,9 +151,25 @@ class TypeChecker:
                 scope.define(stmt.name, FuncType(params, _norm(stmt.ret_type)))
 
     def _check_block(self, block, scope, expected_ret):
+        self._collect_structs(block, scope)
         self._collect_functions(block, scope)
         for stmt in block.statements:
             self._check_stmt(stmt, scope, expected_ret)
+
+    def _check_type(self, t, line):
+        """Report a type annotation that names no known type."""
+        if t is None:
+            return
+        base = _base(t)
+        if base in ("list", "map"):
+            for arg in _type_args(t):
+                self._check_type(arg, line)
+            return
+        if base in _PRIMITIVES or base in ("any", "fn"):
+            return
+        if base in self.structs:
+            return
+        self.error(f"unknown type '{t}'", line)
 
     def _check_stmt(self, node, scope, expected_ret):
         t = type(node)
@@ -164,7 +204,10 @@ class TypeChecker:
         elif t is N.Import:
             # Imported modules are dynamic; their members are `any`.
             scope.define(node.alias, "any")
-        # Break / Continue / StructDef: nothing to check statically yet
+        elif t is N.StructDef:
+            for ft in node.field_types:
+                self._check_type(ft, node.line)
+        # Break / Continue: nothing to check
 
     def _check_assign(self, node, scope):
         value_t = self._infer(node.value, scope)
@@ -172,6 +215,7 @@ class TypeChecker:
         if isinstance(target, N.Identifier):
             if node.annotation is not None:
                 # Annotated declaration: value must fit the annotation.
+                self._check_type(node.annotation, node.line)
                 if not assignable(node.annotation, value_t):
                     self.error(
                         f"cannot assign {type_name(value_t)} to '{target.name}' "
@@ -187,6 +231,18 @@ class TypeChecker:
                             f"declared as {type_name(declared)}", node.line)
                 elif declared is None:
                     scope.define(target.name, "any")
+        elif isinstance(target, N.Attribute):
+            decl = self.structs.get(self._infer(target.target, scope))
+            if decl is not None:
+                if target.name not in decl.field_types:
+                    self.error(
+                        f"{decl.name} has no field '{target.name}'", node.line)
+                elif not assignable(decl.field_types[target.name], value_t):
+                    self.error(
+                        f"cannot assign {type_name(value_t)} to field "
+                        f"'{target.name}' of {decl.name} "
+                        f"(expects {type_name(decl.field_types[target.name])})",
+                        node.line)
         else:
             # Index assignment: evaluate parts to surface nested errors.
             self._infer(target, scope)
@@ -194,7 +250,9 @@ class TypeChecker:
     def _check_funcdef(self, node, scope):
         fn_scope = Scope(scope)
         for name, ann in zip(node.params, node.param_types):
+            self._check_type(ann, node.line)
             fn_scope.define(name, _norm(ann))
+        self._check_type(node.ret_type, node.line)
         ret = _norm(node.ret_type)
         expected = None if ret == "any" else ret
         self._check_block(node.body, fn_scope, expected)
@@ -282,6 +340,21 @@ class TypeChecker:
     def _i_call(self, node, scope):
         callee_t = self._infer(node.callee, scope)
         arg_types = [self._infer(a, scope) for a in node.args]
+        if isinstance(callee_t, StructDecl):
+            # Struct construction: one argument per field, types must fit.
+            if len(arg_types) != len(callee_t.fields):
+                self.error(
+                    f"{callee_t.name}() expects {len(callee_t.fields)} "
+                    f"field(s), got {len(arg_types)}", node.line)
+            else:
+                for i, (f, at) in enumerate(zip(callee_t.fields, arg_types)):
+                    ft = callee_t.field_types[f]
+                    if not assignable(ft, at):
+                        self.error(
+                            f"field '{f}' of {callee_t.name} expects "
+                            f"{type_name(ft)}, got {type_name(at)}",
+                            node.args[i].line)
+            return callee_t.name   # an instance's type is the struct's name
         if isinstance(callee_t, FuncType):
             fname = node.callee.name + "()" if isinstance(node.callee, N.Identifier) else "function"
             if len(arg_types) != len(callee_t.params):
@@ -310,7 +383,11 @@ class TypeChecker:
         return "any"
 
     def _i_attribute(self, node, scope):
-        self._infer(node.target, scope)
+        decl = self.structs.get(self._infer(node.target, scope))
+        if decl is not None:
+            if node.name in decl.field_types:
+                return decl.field_types[node.name]
+            self.error(f"{decl.name} has no field '{node.name}'", node.line)
         return "any"
 
     def _binary_type(self, op, lt, rt, line):
