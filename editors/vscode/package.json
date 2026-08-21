@@ -1,0 +1,27 @@
+{
+  "name": "sandy-language",
+  "displayName": "Sandy Language",
+  "description": "Syntax highlighting and editor support for the Sandy language (.sy).",
+  "version": "0.1.0",
+  "publisher": "sandy-lang",
+  "license": "MIT",
+  "engines": { "vscode": "^1.60.0" },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "sandy",
+        "aliases": ["Sandy", "sandy"],
+        "extensions": [".sy"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "sandy",
+        "scopeName": "source.sandy",
+        "path": "./syntaxes/sandy.tmLanguage.json"
+      }
+    ]
+  }
+}

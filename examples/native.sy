@@ -1,0 +1,56 @@
+# Sandy native example — compiles to a real executable.
+#
+#   sandy build examples/native.sy --run
+#
+# The native backend handles Sandy's *typed scalar core*: int, float, bool,
+# and string, with functions, recursion, loops and conditionals. Typed
+# numeric code like this runs at native (C) speed.
+
+fn fib(n: int) -> int {
+    if n < 2 {
+        return n
+    }
+    return fib(n - 1) + fib(n - 2)
+}
+
+fn is_prime(n: int) -> bool {
+    if n < 2 {
+        return false
+    }
+    d = 2
+    while d * d <= n {
+        if n % d == 0 {
+            return false
+        }
+        d += 1
+    }
+    return true
+}
+
+fn average(a: int, b: int) -> float {
+    return (a + b) / 2
+}
+
+# Count the primes below 100.
+count = 0
+for k in range(2, 100) {
+    if is_prime(k) {
+        count += 1
+    }
+}
+
+fn banner(title: string) -> string {
+    return "== " + title.upper() + " =="
+}
+
+squares: list<int> = []
+for i in range(1, 6) {
+    push(squares, i * i)
+}
+
+print(banner("results"))
+print("fib(30) = {fib(30)}")
+print("primes under 100 = {count}")
+print("average(7, 10) = {average(7, 10)}")
+print("squares 1..5 = {squares}")
+print("-" * 20)

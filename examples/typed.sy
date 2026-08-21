@@ -1,0 +1,49 @@
+# Gradual typing in Sandy.
+#
+# Type annotations are optional. Add them where you want the compiler to
+# check your work; leave them off and the code stays fully dynamic. Either
+# way it runs the same — annotations are checked BEFORE the program runs.
+#
+# Try `sandy check examples/typed.sy` to type-check without running.
+
+# Annotated function: params and return type are verified.
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+fn greet(name: string) -> string {
+    return "Hello, {name}!"
+}
+
+# Annotated variables are checked on every assignment.
+score: int = 0
+score += add(10, 5)
+
+# Mix freely with untyped (dynamic) code — no annotations needed.
+message = greet("Sandy")
+
+print(message)
+print("Score is {score}")
+
+# Untyped helper: fully dynamic, works with anything.
+fn describe(x) {
+    return "{x} is a {type(x)}"
+}
+
+print(describe(42))
+print(describe([1, 2, 3]))
+
+# Typed structs: the checker knows each field's type, so a wrong field name
+# or a wrong-typed value is caught before the program runs.
+struct Point {
+    x: int
+    y: int
+}
+
+fn manhattan(a: Point, b: Point) -> int {
+    return abs(a.x - b.x) + abs(a.y - b.y)
+}
+
+origin: Point = Point(0, 0)
+here: Point = Point(3, 4)
+print("distance = {manhattan(origin, here)}")
