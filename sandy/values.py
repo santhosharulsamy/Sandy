@@ -42,6 +42,31 @@ class BuiltinFunction:
         return f"<builtin {self.name}>"
 
 
+class StructType:
+    """A user-defined struct type (the value bound to the struct's name)."""
+    __slots__ = ("name", "fields", "field_types")
+
+    def __init__(self, name, fields, field_types):
+        self.name = name
+        self.fields = fields            # list of field names
+        self.field_types = field_types  # aligned list (str or None)
+
+    def __repr__(self):
+        return f"<struct {self.name}>"
+
+
+class StructInstance:
+    """An instance of a struct: its type plus a field -> value mapping."""
+    __slots__ = ("struct", "values")
+
+    def __init__(self, struct, values):
+        self.struct = struct
+        self.values = values            # dict field -> value (insertion order)
+
+    def __repr__(self):
+        return to_str(self)
+
+
 def type_name(value):
     if value is None:
         return "nil"
@@ -57,6 +82,10 @@ def type_name(value):
         return "list"
     if isinstance(value, dict):
         return "map"
+    if isinstance(value, StructInstance):
+        return value.struct.name
+    if isinstance(value, StructType):
+        return "struct"
     if isinstance(value, (Function, BuiltinFunction)):
         return "function"
     return "unknown"
@@ -96,6 +125,11 @@ def to_str(value):
     if isinstance(value, dict):
         inner = ", ".join(f"{to_repr(k)}: {to_repr(v)}" for k, v in value.items())
         return "{" + inner + "}"
+    if isinstance(value, StructInstance):
+        inner = ", ".join(f"{k}={to_repr(v)}" for k, v in value.values.items())
+        return f"{value.struct.name}({inner})"
+    if isinstance(value, StructType):
+        return f"<struct {value.name}>"
     if isinstance(value, (Function, BuiltinFunction)):
         return repr(value)
     return str(value)

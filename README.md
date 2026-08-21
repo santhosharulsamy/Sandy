@@ -211,6 +211,23 @@ try {
 }
 ```
 
+### Structs
+
+Group related data into a named type. Construct with the struct name, access
+and mutate fields with `.`, and compare by value. `type(x)` returns the
+struct's name.
+
+```sandy
+struct Point { x, y }        # fields can be typed too: { x: int, y: int }
+
+p = Point(3, 4)
+print(p)                     # Point(x=3, y=4)
+print(p.x)                   # 3
+p.y += 10                    # fields are mutable
+print(type(p))               # Point
+print(Point(1, 2) == Point(1, 2))   # true — equality is by value
+```
+
 ### Gradual types (optional)
 
 Sandy is dynamic by default, but you can *optionally* annotate functions and

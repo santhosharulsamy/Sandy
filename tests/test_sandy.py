@@ -185,6 +185,32 @@ class TestErrors(unittest.TestCase):
         with self.assertRaises(RuntimeErrorSandy):
             run("a = [1]\nprint(a[5])")
 
+    def test_struct_basics(self):
+        out = run('struct Point { x, y }\np = Point(3, 4)\n'
+                  'print(p)\nprint(p.x)\np.y = 9\nprint(p.y)')
+        self.assertEqual(out, "Point(x=3, y=4)\n3\n9\n")
+
+    def test_struct_equality_by_value(self):
+        out = run('struct P { a, b }\nprint(P(1, 2) == P(1, 2))\n'
+                  'print(P(1, 2) == P(2, 1))')
+        self.assertEqual(out, "true\nfalse\n")
+
+    def test_struct_wrong_field(self):
+        try:
+            run('struct P { x }\np = P(1)\nprint(p.z)')
+        except RuntimeErrorSandy as e:
+            self.assertIn("no field 'z'", e.message)
+        else:
+            self.fail("expected RuntimeErrorSandy")
+
+    def test_struct_arity(self):
+        try:
+            run('struct P { x, y }\np = P(1)')
+        except RuntimeErrorSandy as e:
+            self.assertIn("expects 2 field", e.message)
+        else:
+            self.fail("expected RuntimeErrorSandy")
+
     def test_try_catch_runtime_error(self):
         out = run('try { x = 1 / 0\n print("no") } catch e { print("got: " + e) }')
         self.assertEqual(out, "got: division by zero\n")

@@ -23,6 +23,7 @@ class TokenType:
     TRY = "TRY"
     CATCH = "CATCH"
     THROW = "THROW"
+    STRUCT = "STRUCT"
     TRUE = "TRUE"
     FALSE = "FALSE"
     NIL = "NIL"
@@ -79,6 +80,7 @@ KEYWORDS = {
     "try": TokenType.TRY,
     "catch": TokenType.CATCH,
     "throw": TokenType.THROW,
+    "struct": TokenType.STRUCT,
     "true": TokenType.TRUE,
     "false": TokenType.FALSE,
     "nil": TokenType.NIL,

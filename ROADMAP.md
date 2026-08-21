@@ -136,7 +136,9 @@ Turn Sandy into real machine code and single-file binaries.
       Native rejects it as dynamic control flow.
 - [x] File I/O: `read_file`, `read_lines`, `write_file`, `append_file`
 - [ ] Modules / `import` and a project layout
-- [ ] User-defined types (structs / records)
+- [x] User-defined types: `struct Name { fields }` — construction, `.` field
+      access/mutation, value equality, `type()` reporting (interpreter + VM;
+      native rejects for now). Static field type-checking is future work.
 - [ ] Network I/O
 - [ ] A standard library worth reaching for
 

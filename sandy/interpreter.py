@@ -3,7 +3,8 @@
 from .errors import RuntimeErrorSandy
 from . import nodes as N
 from .values import (
-    Function, BuiltinFunction, is_truthy, type_name, to_str,
+    Function, BuiltinFunction, StructType, StructInstance,
+    is_truthy, type_name, to_str,
 )
 from .builtins import make_builtins
 from .suggest import closest_name
@@ -106,8 +107,33 @@ class Interpreter:
                 current = self._index_get(container, key, node.line)
                 value = self._apply_compound(node.op, current, value, node.line)
             self._index_set(container, key, value, node.line)
+        elif isinstance(target, N.Attribute):
+            obj = self._eval(target.target, env)
+            if node.op != "=":
+                current = self._get_field(obj, target.name, node.line)
+                value = self._apply_compound(node.op, current, value, node.line)
+            self._set_field(obj, target.name, value, node.line)
         else:
             raise RuntimeErrorSandy("invalid assignment target", node.line)
+
+    def _get_field(self, obj, name, line):
+        if isinstance(obj, StructInstance):
+            if name not in obj.values:
+                raise RuntimeErrorSandy(
+                    f"{obj.struct.name} has no field '{name}'", line)
+            return obj.values[name]
+        raise RuntimeErrorSandy(
+            f"cannot read field '{name}' of a {type_name(obj)}", line)
+
+    def _set_field(self, obj, name, value, line):
+        if isinstance(obj, StructInstance):
+            if name not in obj.values:
+                raise RuntimeErrorSandy(
+                    f"{obj.struct.name} has no field '{name}'", line)
+            obj.values[name] = value
+            return
+        raise RuntimeErrorSandy(
+            f"cannot set field '{name}' on a {type_name(obj)}", line)
 
     def _apply_compound(self, op, current, value, line):
         return self._binary(op[0], current, value, line)
@@ -169,6 +195,10 @@ class Interpreter:
     def _exec_throw(self, node, env):
         value = self._eval(node.value, env)
         raise RuntimeErrorSandy(to_str(value), node.line)
+
+    def _exec_structdef(self, node, env):
+        env.define(node.name,
+                   StructType(node.name, node.fields, node.field_types))
 
     # -- expression evaluation --
     def _eval(self, node, env):
@@ -256,15 +286,24 @@ class Interpreter:
         return self._index_get(container, key, node.line)
 
     def _eval_attribute(self, node, env):
-        # Attributes are only used for method-style calls on builtins; we
-        # resolve simple ones (e.g. list/string helpers) as bound builtins.
         target = self._eval(node.target, env)
+        # Struct field access takes precedence over method resolution.
+        if isinstance(target, StructInstance):
+            return self._get_field(target, node.name, node.line)
         from .builtins import resolve_method
-        method = resolve_method(self, target, node.name, node.line)
-        return method
+        return resolve_method(self, target, node.name, node.line)
+
+    def _construct(self, struct, args, line):
+        if len(args) != len(struct.fields):
+            raise RuntimeErrorSandy(
+                f"{struct.name}() expects {len(struct.fields)} field(s) "
+                f"({', '.join(struct.fields)}), got {len(args)}", line)
+        return StructInstance(struct, dict(zip(struct.fields, args)))
 
     # -- calling --
     def call(self, callee, args, line):
+        if isinstance(callee, StructType):
+            return self._construct(callee, args, line)
         if isinstance(callee, BuiltinFunction):
             self._check_arity(callee, args, line)
             return callee.fn(args, line)
@@ -350,6 +389,11 @@ class Interpreter:
             return a is b
         if self._is_num(a) and self._is_num(b):
             return a == b
+        if isinstance(a, StructInstance) and isinstance(b, StructInstance):
+            return (a.struct.name == b.struct.name
+                    and a.values.keys() == b.values.keys()
+                    and all(self._equals(a.values[k], b.values[k])
+                            for k in a.values))
         if type(a) is type(b):
             return a == b
         return False
@@ -449,6 +493,7 @@ Interpreter._STMT_DISPATCH = {
     N.Continue: Interpreter._exec_continue,
     N.Try: Interpreter._exec_try,
     N.Throw: Interpreter._exec_throw,
+    N.StructDef: Interpreter._exec_structdef,
 }
 
 Interpreter._EXPR_DISPATCH = {

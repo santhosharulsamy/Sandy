@@ -543,6 +543,10 @@ class CBackend:
                 "try/catch/throw is dynamic control flow and is not supported "
                 "by the native backend; run it with the interpreter or `--vm`",
                 getattr(s, "line", None))
+        if t is N.StructDef:
+            raise NativeUnsupported(
+                "structs are not supported by the native backend yet; run "
+                "with the interpreter or `--vm`", getattr(s, "line", None))
         raise NativeUnsupported(
             f"{type(s).__name__} is not supported in native mode",
             getattr(s, "line", None))

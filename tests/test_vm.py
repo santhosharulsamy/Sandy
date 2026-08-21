@@ -69,6 +69,14 @@ PROGRAMS = [
     # continue out of a try inside a loop
     'total = 0\nfor n in range(5) { try { if n == 2 { continue }\n'
     ' total += n } catch e { } }\nprint(total)',
+    # structs: construction, field access, mutation, printing, type()
+    'struct Point { x, y }\np = Point(3, 4)\nprint(p)\nprint(p.x + p.y)\n'
+    'p.x = 10\np.y += 1\nprint(p)\nprint(type(p))',
+    'struct P { name, age }\nppl = [P("Sam", 30), P("Al", 25)]\n'
+    'for q in ppl { print("{q.name}={q.age}") }',
+    'struct V { x, y }\nprint(V(1, 2) == V(1, 2))\nprint(V(1, 2) == V(1, 9))',
+    'struct Box { items }\nb = Box([])\npush(b.items, 1)\npush(b.items, 2)\n'
+    'print(b.items)\nprint(len(b.items))',
 ]
 
 

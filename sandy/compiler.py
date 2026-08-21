@@ -1,6 +1,7 @@
 """Compile a Sandy AST into bytecode CodeObjects for the VM."""
 
 from .errors import ParseError
+from .values import StructType
 from . import nodes as N
 from . import bytecode as B
 
@@ -146,6 +147,17 @@ class Compiler:
                 self._compile_expr(node.value)
                 self._emit(B.BINARY_OPS[node.op[0]], None, node.line)
             self._emit(B.INDEX_SET, None, node.line)
+        elif isinstance(target, N.Attribute):
+            if node.op == "=":
+                self._compile_expr(target.target)
+                self._compile_expr(node.value)
+            else:
+                self._compile_expr(target.target)
+                self._emit(B.DUP_TOP, None, node.line)
+                self._emit(B.GET_ATTR, target.name, node.line)
+                self._compile_expr(node.value)
+                self._emit(B.BINARY_OPS[node.op[0]], None, node.line)
+            self._emit(B.SET_ATTR, target.name, node.line)
         else:
             raise ParseError("invalid assignment target", node.line)
 
@@ -241,6 +253,12 @@ class Compiler:
     def _c_throw(self, node):
         self._compile_expr(node.value)
         self._emit(B.THROW, None, node.line)
+
+    def _c_structdef(self, node):
+        # A struct type is an immutable value; bake it into the constants pool.
+        st = StructType(node.name, node.fields, node.field_types)
+        self._emit(B.LOAD_CONST, self._const(st), node.line)
+        self._emit(B.DEFINE_NAME, node.name, node.line)
 
     # -- expressions --
     def _compile_expr(self, node):
@@ -401,6 +419,7 @@ Compiler._STMT = {
     N.Continue: Compiler._c_continue,
     N.Try: Compiler._c_try,
     N.Throw: Compiler._c_throw,
+    N.StructDef: Compiler._c_structdef,
 }
 
 Compiler._EXPR = {

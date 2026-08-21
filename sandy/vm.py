@@ -14,7 +14,8 @@ hottest paths are found after the fewest comparisons.
 
 from .errors import RuntimeErrorSandy
 from .interpreter import Interpreter, Environment
-from .values import BuiltinFunction, is_truthy, to_str, type_name
+from .values import (BuiltinFunction, StructType, StructInstance,
+                     is_truthy, to_str, type_name)
 from .builtins import resolve_method
 from . import bytecode as B
 
@@ -198,6 +199,8 @@ class VM:
                     elif tc is BuiltinFunction:
                         rt._check_arity(callee, args, lines[ip - 1])
                         push(callee.fn(args, lines[ip - 1]))
+                    elif tc is StructType:
+                        push(rt._construct(callee, args, lines[ip - 1]))
                     else:
                         raise RuntimeErrorSandy(
                             f"'{type_name(callee)}' value is not callable",
@@ -323,7 +326,16 @@ class VM:
                         raise RuntimeErrorSandy(
                             f"cannot negate a {type_name(a)}", lines[ip - 1])
                 elif op == B.GET_ATTR:
-                    push(resolve_method(rt, stack.pop(), arg, lines[ip - 1]))
+                    target = stack.pop()
+                    if type(target) is StructInstance:
+                        push(rt._get_field(target, arg, lines[ip - 1]))
+                    else:
+                        push(resolve_method(rt, target, arg, lines[ip - 1]))
+                elif op == B.SET_ATTR:
+                    val = stack.pop(); obj = stack.pop()
+                    rt._set_field(obj, arg, val, lines[ip - 1])
+                elif op == B.DUP_TOP:
+                    push(stack[-1])
                 elif op == B.BUILD_LIST:
                     if arg:
                         items = stack[-arg:]

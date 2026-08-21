@@ -94,6 +94,8 @@ class Parser:
         if t == T.CONTINUE:
             line = self._advance().line
             return N.Continue(line)
+        if t == T.STRUCT:
+            return self._struct_def()
         if t == T.TRY:
             return self._try_stmt()
         if t == T.THROW:
@@ -101,6 +103,20 @@ class Parser:
             value = self._expression()
             return N.Throw(value, line)
         return self._assign_or_expr()
+
+    def _struct_def(self):
+        line = self._advance().line  # 'struct'
+        name = self._expect(T.IDENT, "struct name").value
+        self._expect(T.LBRACE, "'{'")
+        self._skip_newlines()
+        fields, field_types = [], []
+        while not self._check(T.RBRACE) and not self._check(T.EOF):
+            fields.append(self._expect(T.IDENT, "field name").value)
+            field_types.append(self._opt_type_annotation())
+            self._match(T.COMMA)   # comma between fields is optional
+            self._skip_newlines()
+        self._expect(T.RBRACE, "'}'")
+        return N.StructDef(name, fields, field_types, line)
 
     def _try_stmt(self):
         line = self._advance().line  # 'try'
@@ -217,7 +233,7 @@ class Parser:
             return N.Assign(expr, "=", value, line, annotation)
         op_tok = self._cur()
         if op_tok.type in _ASSIGN_OPS:
-            if not isinstance(expr, (N.Identifier, N.Index)):
+            if not isinstance(expr, (N.Identifier, N.Index, N.Attribute)):
                 raise ParseError("invalid assignment target", op_tok.line)
             self._advance()
             value = self._expression()

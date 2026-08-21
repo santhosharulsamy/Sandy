@@ -182,3 +182,11 @@ class Throw(Node):
     __slots__ = ("value", "line")
     def __init__(self, value, line):
         self.value = value; self.line = line
+
+
+class StructDef(Node):
+    # fields: list of field names; field_types: aligned list (str or None)
+    __slots__ = ("name", "fields", "field_types", "line")
+    def __init__(self, name, fields, field_types, line):
+        self.name = name; self.fields = fields
+        self.field_types = field_types; self.line = line
