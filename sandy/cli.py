@@ -71,7 +71,8 @@ def main(argv=None):
                 output = argv[i + 1]
                 files = [f for f in files if f != output]
         return build_file(files[0], output=output,
-                          run="--run" in argv, emit_c="--emit-c" in argv)
+                          run="--run" in argv, emit_c="--emit-c" in argv,
+                          gc="--gc" in argv)
     if first == "lsp":
         from .lsp import main as lsp_main
         return lsp_main()

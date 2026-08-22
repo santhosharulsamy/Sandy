@@ -329,6 +329,7 @@ Typed programs can be compiled to a **native executable** via C:
 sandy build program.sy          # produces ./program
 sandy build program.sy --run    # build and run it
 sandy build program.sy --emit-c # also keep the generated C
+sandy build program.sy --gc     # manage memory with a garbage collector
 ```
 
 The native backend handles Sandy's **typed core**:
@@ -353,9 +354,12 @@ core (closures, dynamic `any`, heterogeneous collections) are reported
 clearly — run those with `sandy run` or `sandy --vm` instead. A C compiler
 (`cc`, `gcc`, or `clang`) is required.
 
-Native strings, lists and maps are heap-allocated and not yet garbage-
-collected, which is fine for short-lived programs but not long-running ones —
-a GC is on the roadmap.
+Native heap values (strings, lists, maps, structs) leak by default — fine for
+short-lived tools, where leak-and-exit is the fastest thing to do. For
+long-running programs, `sandy build --gc` routes every allocation through a
+conservative mark-sweep garbage collector, so memory stays bounded (an
+allocation-heavy loop that climbs to hundreds of MB without it stays flat at
+~10 MB); output and iteration order are identical either way.
 
 ### Functions
 

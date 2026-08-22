@@ -63,10 +63,12 @@ def type_check_source(source, base_dir=None):
     return TypeChecker(base_dir=base_dir).check(parse(tokenize(source)))
 
 
-def build_file(path, output=None, run=False, emit_c=False):
+def build_file(path, output=None, run=False, emit_c=False, gc=False):
     """Compile a Sandy program to a native executable via C.
 
     Handles the typed scalar core; unsupported features are reported clearly.
+    With gc=True, the generated program manages memory with a conservative
+    garbage collector instead of leaking (for long-running programs).
     """
     import os
     import shutil
@@ -108,10 +110,11 @@ def build_file(path, output=None, run=False, emit_c=False):
     with open(c_path, "w", encoding="utf-8") as f:
         f.write(csrc)
 
+    cc_cmd = [cc, "-O2", "-o", output, c_path, "-lm"]
+    if gc:
+        cc_cmd.insert(1, "-DSANDY_GC")
     try:
-        result = subprocess.run(
-            [cc, "-O2", "-o", output, c_path, "-lm"],
-            capture_output=True, text=True)
+        result = subprocess.run(cc_cmd, capture_output=True, text=True)
     finally:
         if not emit_c:
             try:

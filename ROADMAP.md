@@ -124,8 +124,13 @@ Turn Sandy into real machine code and single-file binaries.
       heap-allocated for reference semantics (aliasing + mutation-through-calls
       match the interpreter). Struct fields of list/map type are future work.
 - [ ] Heterogeneous/dynamic lists and maps (a tagged-value runtime)
-- [ ] Garbage collection (native heap values currently leak — fine for
-      short-lived tools, not for long-running ones)
+- [x] Garbage collection: `sandy build --gc` routes every native allocation
+      through a conservative mark-sweep collector (setjmp register flush +
+      stack scan), so long-running programs keep memory bounded instead of
+      leaking. Output and iteration order are identical to the leaking build;
+      an allocation-heavy loop stays flat (~10 MB) where the leaking build
+      climbs to hundreds of MB. Off by default (leak-and-go is faster for
+      short-lived tools).
 - [ ] Dynamic `any` values, closures, list/map struct fields
 - [ ] Consider an LLVM backend once the C route is fully proven
 - **Measured:** `fib(35)` runs in **~0.02s** as a native binary vs **~96s**

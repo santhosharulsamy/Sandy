@@ -31,15 +31,17 @@ def interpret(src):
     return out.getvalue()
 
 
-def compile_and_run(src):
+def compile_and_run(src, gc=False):
     csrc = to_c(parse(tokenize(src)))
     tmp = tempfile.mkdtemp()
     c_file = os.path.join(tmp, "prog.c")
     exe = os.path.join(tmp, "prog")
     with open(c_file, "w") as f:
         f.write(csrc)
-    subprocess.run([CC, "-O2", "-o", exe, c_file, "-lm"], check=True,
-                   capture_output=True)
+    cmd = [CC, "-O2", "-o", exe, c_file, "-lm"]
+    if gc:
+        cmd.insert(1, "-DSANDY_GC")
+    subprocess.run(cmd, check=True, capture_output=True)
     return subprocess.run([exe], capture_output=True, text=True).stdout
 
 
@@ -126,6 +128,50 @@ class TestNativeMatchesInterpreter(unittest.TestCase):
             with self.subTest(program=i):
                 self.assertEqual(compile_and_run(src), interpret(src),
                                  f"native != interpreter for program #{i}")
+
+    def test_gc_matches_and_bounds_memory(self):
+        # An allocation-heavy program: with the GC on, output must be identical
+        # to the interpreter, and peak memory must be far below the leaking
+        # build (proving collection actually happens).
+        src = ('struct P { x: int }\n'
+               'total: int = 0\n'
+               'for i in range(120000) {\n'
+               '    s: string = "n-" + str(i)\n'
+               '    xs: list<int> = [i, i * 2]\n'
+               '    p: P = P(i)\n'
+               '    total += len(s) + xs[1] + p.x\n'
+               '}\nprint(total)')
+        self.assertEqual(compile_and_run(src, gc=True), interpret(src))
+
+        import resource
+        exe_leak = self._build(src, gc=False)
+        exe_gc = self._build(src, gc=True)
+        leak = self._peak_rss(exe_leak)
+        gc = self._peak_rss(exe_gc)
+        self.assertLess(gc * 2, leak,
+                        f"GC did not bound memory (leak={leak}, gc={gc})")
+
+    def _build(self, src, gc):
+        csrc = to_c(parse(tokenize(src)))
+        tmp = tempfile.mkdtemp()
+        c_file, exe = os.path.join(tmp, "p.c"), os.path.join(tmp, "p")
+        with open(c_file, "w") as f:
+            f.write(csrc)
+        cmd = [CC, "-O2", "-o", exe, c_file, "-lm"]
+        if gc:
+            cmd.insert(1, "-DSANDY_GC")
+        subprocess.run(cmd, check=True, capture_output=True)
+        return exe
+
+    def _peak_rss(self, exe):
+        # Peak RSS of a fresh child process (KB), isolated in a subprocess.
+        r = subprocess.run(
+            [sys.executable, "-c",
+             "import subprocess,resource,sys;"
+             "subprocess.run([sys.argv[1]],stdout=subprocess.DEVNULL);"
+             "print(resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss)",
+             exe], capture_output=True, text=True)
+        return int(r.stdout.strip())
 
     def test_example(self):
         # native.sy computes fib(30) — instant compiled, but slow on the

@@ -34,9 +34,13 @@ Semantics are matched to the interpreter on purpose: `/` is always float,
 (integral values as `N.0`), string ordering is lexicographic (strcmp), and
 lists print as `[a, b, c]` with strings quoted.
 
-Strings and lists are heap-allocated and, for now, never freed — fine for the
-short-lived programs this backend targets; a garbage collector is a later
-roadmap item. Maps and dynamic `any` are not yet supported natively.
+Heap values (strings, lists, maps, structs) are allocated through a small set
+of macros. By default they are never freed — fine for the short-lived programs
+this backend targets. Building with `sandy build --gc` (`-DSANDY_GC`) instead
+routes every allocation through a conservative mark-sweep garbage collector, so
+long-running programs keep their memory bounded; correctness and iteration
+order are identical either way. Dynamic `any` values and closures are not yet
+supported natively.
 """
 
 from .errors import SandyError
@@ -63,6 +67,95 @@ _STRING_METHODS = {
     "trim": ("sy_trim", "string"),
     "length": ("sy_slen", "int"),
 }
+
+# Allocation macros + an optional conservative mark-sweep garbage collector.
+# Compiling with -DSANDY_GC (the `sandy build --gc` flag) routes every heap
+# allocation through the collector; without it, allocations use libc and leak
+# (fine for short-lived tools). One generated program supports both modes.
+_GC_RUNTIME = r"""
+#ifdef SANDY_GC
+#include <setjmp.h>
+#include <stdint.h>
+typedef struct { void* ptr; size_t size; int mark; } SyGCEntry;
+static SyGCEntry* sy_gc_tab = NULL;
+static size_t sy_gc_cap = 0, sy_gc_count = 0;
+static size_t sy_gc_bytes = 0, sy_gc_threshold = 1u << 20;
+static void* sy_gc_bottom = NULL;
+static void sy_gc_init(void* bottom) { sy_gc_bottom = bottom; }
+static size_t sy_gc_hash(void* p) { return (size_t)((uintptr_t)p >> 4) * 2654435761u; }
+static void sy_gc_put(void* p, size_t size);
+static void sy_gc_rehash(size_t newcap) {
+    SyGCEntry* old = sy_gc_tab; size_t oc = sy_gc_cap;
+    sy_gc_tab = (SyGCEntry*)calloc(newcap, sizeof(SyGCEntry));
+    sy_gc_cap = newcap; sy_gc_count = 0;
+    for (size_t i = 0; i < oc; i++) if (old[i].ptr) sy_gc_put(old[i].ptr, old[i].size);
+    free(old);
+}
+static void sy_gc_put(void* p, size_t size) {
+    if (sy_gc_cap == 0) sy_gc_rehash(1024);
+    else if ((sy_gc_count + 1) * 10 >= sy_gc_cap * 7) sy_gc_rehash(sy_gc_cap * 2);
+    size_t h = sy_gc_hash(p) & (sy_gc_cap - 1);
+    while (sy_gc_tab[h].ptr) {
+        if (sy_gc_tab[h].ptr == p) { sy_gc_tab[h].size = size; return; }
+        h = (h + 1) & (sy_gc_cap - 1);
+    }
+    sy_gc_tab[h].ptr = p; sy_gc_tab[h].size = size; sy_gc_tab[h].mark = 0;
+    sy_gc_count++;
+}
+static SyGCEntry* sy_gc_find(void* p) {
+    if (!sy_gc_cap || !p) return NULL;
+    size_t h = sy_gc_hash(p) & (sy_gc_cap - 1);
+    while (sy_gc_tab[h].ptr) {
+        if (sy_gc_tab[h].ptr == p) return &sy_gc_tab[h];
+        h = (h + 1) & (sy_gc_cap - 1);
+    }
+    return NULL;
+}
+static void sy_gc_mark(char* lo, char* hi) {
+    uintptr_t a = ((uintptr_t)lo + sizeof(void*) - 1) & ~(uintptr_t)(sizeof(void*) - 1);
+    for (char* pp = (char*)a; pp + sizeof(void*) <= hi; pp += sizeof(void*)) {
+        SyGCEntry* e = sy_gc_find(*(void**)pp);
+        if (e && !e->mark) { e->mark = 1; sy_gc_mark((char*)e->ptr, (char*)e->ptr + e->size); }
+    }
+}
+static void sy_gc_collect(void) {
+    jmp_buf jb; setjmp(jb);              /* flush callee-saved registers to stack */
+    char anchor; char* cur = &anchor;
+    char* lo = cur < (char*)sy_gc_bottom ? cur : (char*)sy_gc_bottom;
+    char* hi = cur < (char*)sy_gc_bottom ? (char*)sy_gc_bottom : cur;
+    for (size_t i = 0; i < sy_gc_cap; i++) sy_gc_tab[i].mark = 0;
+    sy_gc_mark(lo, hi);
+    for (size_t i = 0; i < sy_gc_cap; i++)
+        if (sy_gc_tab[i].ptr && !sy_gc_tab[i].mark) {
+            free(sy_gc_tab[i].ptr); sy_gc_tab[i].ptr = NULL; sy_gc_count--;
+        }
+    sy_gc_bytes = 0;
+}
+static void* sy_gc_alloc(size_t n) {
+    if (sy_gc_bytes > sy_gc_threshold) sy_gc_collect();
+    void* p = malloc(n ? n : 1);
+    sy_gc_put(p, n); sy_gc_bytes += n; return p;
+}
+static void* sy_gc_calloc(size_t a, size_t b) {
+    void* p = sy_gc_alloc(a * b); memset(p, 0, a * b); return p;
+}
+static void* sy_gc_realloc(void* old, size_t n) {
+    void* p = sy_gc_alloc(n);
+    if (old) { SyGCEntry* e = sy_gc_find(old);
+               size_t os = e ? e->size : 0; memcpy(p, old, os < n ? os : n); }
+    return p;
+}
+#define SY_ALLOC(n) sy_gc_alloc(n)
+#define SY_CALLOC(a, b) sy_gc_calloc(a, b)
+#define SY_REALLOC(p, n) sy_gc_realloc(p, n)
+#define SY_FREE(p) ((void)0)
+#else
+#define SY_ALLOC(n) malloc(n)
+#define SY_CALLOC(a, b) calloc(a, b)
+#define SY_REALLOC(p, n) realloc(p, n)
+#define SY_FREE(p) free(p)
+#endif
+"""
 
 _HELPERS = r"""
 static long long sy_ipow(long long base, long long exp) {
@@ -98,38 +191,38 @@ static void sy_pf(double v) {
    backend currently targets. */
 static char* sy_concat(const char* a, const char* b) {
     size_t la = strlen(a), lb = strlen(b);
-    char* r = (char*)malloc(la + lb + 1);
+    char* r = (char*)SY_ALLOC(la + lb + 1);
     memcpy(r, a, la); memcpy(r + la, b, lb + 1);
     return r;
 }
 static char* sy_repeat(const char* s, long long n) {
     if (n < 0) n = 0;
     size_t ls = strlen(s);
-    char* r = (char*)malloc(ls * (size_t)n + 1);
+    char* r = (char*)SY_ALLOC(ls * (size_t)n + 1);
     char* p = r;
     for (long long i = 0; i < n; i++) { memcpy(p, s, ls); p += ls; }
     *p = 0;
     return r;
 }
 static char* sy_from_ll(long long v) {
-    char* r = (char*)malloc(24);
+    char* r = (char*)SY_ALLOC(24);
     snprintf(r, 24, "%lld", v);
     return r;
 }
 static char* sy_from_double(double v) {
-    char* r = (char*)malloc(32);
+    char* r = (char*)SY_ALLOC(32);
     if (v == (long long)v && v < 1e16 && v > -1e16) snprintf(r, 32, "%.1f", v);
     else snprintf(r, 32, "%g", v);
     return r;
 }
 static long long sy_slen(const char* s) { return (long long)strlen(s); }
 static char* sy_upper(const char* s) {
-    size_t n = strlen(s); char* r = (char*)malloc(n + 1);
+    size_t n = strlen(s); char* r = (char*)SY_ALLOC(n + 1);
     for (size_t i = 0; i < n; i++) r[i] = (char)toupper((unsigned char)s[i]);
     r[n] = 0; return r;
 }
 static char* sy_lower(const char* s) {
-    size_t n = strlen(s); char* r = (char*)malloc(n + 1);
+    size_t n = strlen(s); char* r = (char*)SY_ALLOC(n + 1);
     for (size_t i = 0; i < n; i++) r[i] = (char)tolower((unsigned char)s[i]);
     r[n] = 0; return r;
 }
@@ -137,7 +230,7 @@ static char* sy_trim(const char* s) {
     while (*s && isspace((unsigned char)*s)) s++;
     size_t n = strlen(s);
     while (n > 0 && isspace((unsigned char)s[n - 1])) n--;
-    char* r = (char*)malloc(n + 1);
+    char* r = (char*)SY_ALLOC(n + 1);
     memcpy(r, s, n); r[n] = 0; return r;
 }
 static void sy_prepr(const char* s) {  /* quoted form used inside lists */
@@ -217,13 +310,13 @@ def _list_runtime(et):
     return f"""
 typedef struct {{ {ct}* data; long long len, cap; }} SyList_{sfx};
 static SyList_{sfx}* sy_lnew_{sfx}(void) {{
-    SyList_{sfx}* L = (SyList_{sfx}*)malloc(sizeof(SyList_{sfx}));
+    SyList_{sfx}* L = (SyList_{sfx}*)SY_ALLOC(sizeof(SyList_{sfx}));
     L->data = NULL; L->len = 0; L->cap = 0; return L;
 }}
 static SyList_{sfx}* sy_lpush_{sfx}(SyList_{sfx}* L, {ct} v) {{
     if (L->len == L->cap) {{
         L->cap = L->cap ? L->cap * 2 : 8;
-        L->data = ({ct}*)realloc(L->data, (size_t)L->cap * sizeof({ct}));
+        L->data = ({ct}*)SY_REALLOC(L->data, (size_t)L->cap * sizeof({ct}));
     }}
     L->data[L->len++] = v; return L;
 }}
@@ -275,32 +368,32 @@ def _map_runtime(kt, vt):
 typedef struct {{ {kc}* keys; {vc}* vals; char* used; {kc}* order;
                   long long cap, len, ocap; }} {mt};
 static {mt}* sy_mnew_{ks}_{vs}(void) {{
-    {mt}* m = ({mt}*)malloc(sizeof({mt}));
+    {mt}* m = ({mt}*)SY_ALLOC(sizeof({mt}));
     m->cap = 8; m->len = 0; m->ocap = 0; m->order = NULL;
-    m->keys = ({kc}*)calloc(8, sizeof({kc}));
-    m->vals = ({vc}*)malloc(8 * sizeof({vc}));
-    m->used = (char*)calloc(8, 1);
+    m->keys = ({kc}*)SY_CALLOC(8, sizeof({kc}));
+    m->vals = ({vc}*)SY_ALLOC(8 * sizeof({vc}));
+    m->used = (char*)SY_CALLOC(8, 1);
     return m;
 }}
 static void sy_mgrow_{ks}_{vs}({mt}* m) {{  /* rehash slots; keep len and order */
     long long oc = m->cap; {kc}* ok = m->keys; {vc}* ov = m->vals; char* ou = m->used;
     m->cap = oc * 2;
-    m->keys = ({kc}*)calloc((size_t)m->cap, sizeof({kc}));
-    m->vals = ({vc}*)malloc((size_t)m->cap * sizeof({vc}));
-    m->used = (char*)calloc((size_t)m->cap, 1);
+    m->keys = ({kc}*)SY_CALLOC((size_t)m->cap, sizeof({kc}));
+    m->vals = ({vc}*)SY_ALLOC((size_t)m->cap * sizeof({vc}));
+    m->used = (char*)SY_CALLOC((size_t)m->cap, 1);
     for (long long i = 0; i < oc; i++) if (ou[i]) {{
         unsigned long h = sy_hash_{ks}(ok[i]) & (unsigned long)(m->cap - 1);
         while (m->used[h]) h = (h + 1) & (unsigned long)(m->cap - 1);
         m->used[h] = 1; m->keys[h] = ok[i]; m->vals[h] = ov[i];
     }}
-    free(ok); free(ov); free(ou);
+    SY_FREE(ok); SY_FREE(ov); SY_FREE(ou);
 }}
 static void sy_mput_{ks}_{vs}({mt}* m, {kc} k, {vc} v) {{
     if ((m->len + 1) * 10 >= m->cap * 7) sy_mgrow_{ks}_{vs}(m);
     unsigned long h = sy_hash_{ks}(k) & (unsigned long)(m->cap - 1);
     while (m->used[h]) {{ if (sy_keq_{ks}(m->keys[h], k)) {{ m->vals[h] = v; return; }} h = (h + 1) & (unsigned long)(m->cap - 1); }}
     m->used[h] = 1; m->keys[h] = k; m->vals[h] = v;
-    if (m->len == m->ocap) {{ m->ocap = m->ocap ? m->ocap * 2 : 8; m->order = ({kc}*)realloc(m->order, (size_t)m->ocap * sizeof({kc})); }}
+    if (m->len == m->ocap) {{ m->ocap = m->ocap ? m->ocap * 2 : 8; m->order = ({kc}*)SY_REALLOC(m->order, (size_t)m->ocap * sizeof({kc})); }}
     m->order[m->len] = k; m->len++;
 }}
 static {vc} sy_mget_{ks}_{vs}({mt}* m, {kc} k, int line) {{
@@ -439,6 +532,9 @@ class CBackend:
         block = N.Block(stmts)
         locals_ = self._infer_locals(block, scope, pseudo)
         lines = ["int main(void) {"]
+        lines.append("#ifdef SANDY_GC")
+        lines.append("    sy_gc_init(__builtin_frame_address(0));")
+        lines.append("#endif")
         for n, t in locals_:
             lines.append(f"    {self._cty(t)} {n} = {self._czero(t)};")
         lines += self._emit_block(block, scope, pseudo, 1)
@@ -864,7 +960,7 @@ class CBackend:
             self.structs_needed.append(name)
         tmp = self._newtmp()
         stmts = [f"SyStruct_{name}* {tmp} = "
-                 f"(SyStruct_{name}*)malloc(sizeof(SyStruct_{name}));"]
+                 f"(SyStruct_{name}*)SY_ALLOC(sizeof(SyStruct_{name}));"]
         for fname, ft, arg in zip(fields, ftypes, e.args):
             ac, at = self._expr(arg, scope, sig)
             self._check_assignable(ft, at, e.line, f"field '{fname}' of {name}")
@@ -1198,6 +1294,7 @@ class CBackend:
             "#include <string.h>",
             "#include <stdlib.h>",
             "#include <ctype.h>",
+            _GC_RUNTIME,
             _HELPERS,
             list_rt,
             key_rt,
