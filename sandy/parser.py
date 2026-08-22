@@ -183,7 +183,22 @@ class Parser:
         if tok.type == T.NIL:
             self._advance(); return "nil"
         if tok.type == T.FN:
-            self._advance(); return "fn"
+            self._advance()
+            # A function type: bare `fn` (any function), or a precise signature
+            # `fn(int, int) -> int` (params in parens, optional `-> ret`).
+            if not self._check(T.LPAREN):
+                return "fn"
+            self._advance()  # '('
+            params = []
+            if not self._check(T.RPAREN):
+                params.append(self._type_annotation())
+                while self._match(T.COMMA):
+                    params.append(self._type_annotation())
+            self._expect(T.RPAREN, "')' to close function-type parameters")
+            inner = ",".join(params)
+            if self._match(T.ARROW):
+                return f"fn({inner})->{self._type_annotation()}"
+            return f"fn({inner})"
         if tok.type == T.IDENT:
             # Any identifier is accepted as a type name here; the type checker
             # validates it (a primitive, list/map, `any`, or a struct name).

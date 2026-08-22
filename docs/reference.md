@@ -141,7 +141,8 @@ list       = "[" ( expr ( "," expr )* ","? )? "]" ;
 map        = "{" ( entry ( "," entry )* ","? )? "}" ;
 entry      = expr ":" expr ;
 
-type       = "int" | "float" | "string" | "bool" | "nil" | "any" | "fn"
+type       = "int" | "float" | "string" | "bool" | "nil" | "any"
+           | "fn" ( "(" ( type ( "," type )* )? ")" ( "->" type )? )?
            | "list" ( "<" type ">" )?
            | "map" ( "<" type "," type ">" )?
            | IDENT ;   (* a struct name *)
@@ -324,13 +325,21 @@ fn add(a: int, b: int) -> int { return a + b }
 score: int = 0
 struct Point { x: int, y: int }
 fn move(p: Point, dx: int) -> Point { … }
+apply: fn(int) -> int = add      # (illustrative) a function-typed binding
 ```
+
+**Function types.** `fn(T1, T2) -> R` is the type of a function taking `T1, T2`
+and returning `R` (omit `-> R` for a function that returns nothing). A bare
+`fn` means "any function" and stays fully gradual. A function value — a
+function passed as an argument, stored, or returned — is checked against such a
+type, and calls through it are verified.
 
 ### 8.2 What is checked
 
 - Assignment to an annotated variable, and later reassignment, must match.
 - A function's `return` values must match its declared return type.
-- Call arity and argument types against annotated parameters.
+- Call arity and argument types against annotated parameters, including calls
+  made through a value of function type `fn(...) -> R`.
 - Operator operands (e.g. `int + string` is rejected when both are known).
 - List/map element types via `list<T>` / `map<K, V>`.
 - Struct construction (arity and field types), field access (unknown field),
@@ -392,11 +401,13 @@ Sandy has two interpreters that produce identical results:
 
 A **native backend** (`sandy build file.sy`) transpiles the statically typed
 subset — scalars (`int`, `float`, `bool`, `string`), typed `list<T>` and
-`map<K,V>`, structs, typed functions, control flow, and `try`/`catch`/`throw` —
-to C and compiles it with the system C compiler. Heap memory leaks by default
-(fine for short-lived tools); `sandy build --gc` adds a conservative garbage
+`map<K,V>`, structs, typed functions (including first-class *top-level*
+functions via `fn(...) -> R`), control flow, and `try`/`catch`/`throw` — to C
+and compiles it with the system C compiler. Heap memory leaks by default (fine
+for short-lived tools); `sandy build --gc` adds a conservative garbage
 collector for long-running programs. Dynamic features (untyped `any` values,
-closures, modules) are reported as unsupported rather than mis-compiled.
+capturing closures, modules) are reported as unsupported rather than
+mis-compiled.
 
 ---
 

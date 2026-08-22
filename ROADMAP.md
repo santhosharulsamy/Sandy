@@ -132,6 +132,14 @@ Turn Sandy into real machine code and single-file binaries.
       interpreter. Locals in a function that uses `try` are made `volatile` for
       longjmp-safety, and the handler stack is restored on every non-local exit
       (return/break/continue), so only programs that use `try` pay any cost.
+- [x] Native **first-class functions**: a new precise function type
+      `fn(int, int) -> int` (parser + gradual checker; bare `fn` stays fully
+      gradual). A *top-level* function used as a value — passed as an argument,
+      stored in an `fn(...)->...`-typed variable, returned, and called through —
+      compiles to a plain C function pointer (no boxing, stays on the fast
+      path). The checker verifies calls through function values (arity +
+      argument/return types). Capturing nested closures still run on the
+      interpreter/VM and are rejected natively (they need a heap environment).
 - [ ] Heterogeneous/dynamic lists and maps (a tagged-value runtime)
 - [x] Garbage collection: `sandy build --gc` routes every native allocation
       through a conservative mark-sweep collector (setjmp register flush +
@@ -140,7 +148,7 @@ Turn Sandy into real machine code and single-file binaries.
       an allocation-heavy loop stays flat (~10 MB) where the leaking build
       climbs to hundreds of MB. Off by default (leak-and-go is faster for
       short-lived tools).
-- [ ] Dynamic `any` values, closures, network I/O
+- [ ] Dynamic `any` values, capturing closures (native), network I/O
 - [ ] Consider an LLVM backend once the C route is fully proven
 - **Measured:** `fib(35)` runs in **~0.02s** as a native binary vs **~96s**
   on the VM — several thousand× faster. Typed numeric Sandy now runs at C

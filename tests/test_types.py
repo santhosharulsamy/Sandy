@@ -167,5 +167,36 @@ class TestGradualInterop(unittest.TestCase):
         self.assertEqual(errors(code), [])
 
 
+class TestFunctionTypes(unittest.TestCase):
+    HOF = ('fn apply(f: fn(int) -> int, x: int) -> int { return f(x) }\n'
+           'fn twice(n: int) -> int { return n * 2 }\n')
+
+    def test_first_class_function_clean(self):
+        code = self.HOF + ('print(apply(twice, 5))\n'
+                           'g: fn(int) -> int = twice\nprint(g(3))')
+        self.assertEqual(errors(code), [])
+
+    def test_call_through_value_checks_arg_type(self):
+        code = self.HOF + 'print(apply(twice, "no"))'
+        self.assertTrue(any("argument" in m for m in messages(code)), messages(code))
+
+    def test_call_through_value_checks_arity(self):
+        code = ('fn f(g: fn(int, int) -> int) -> int { return g(1) }')
+        self.assertTrue(any("argument" in m for m in messages(code)), messages(code))
+
+    def test_wrong_function_return_used(self):
+        # twice returns int, so its result flows into a string slot -> error
+        code = self.HOF + 'fn need(s: string) -> string { return s }\n' \
+                          'print(need(apply(twice, 1)))'
+        self.assertTrue(any("expects" in m or "argument" in m
+                            for m in messages(code)), messages(code))
+
+    def test_bare_fn_is_gradual(self):
+        # A bare `fn` annotation stays fully gradual: no arity/type errors.
+        code = ('fn run(f: fn, x) { return f(x) }\n'
+                'fn twice(n) { return n * 2 }\nprint(run(twice, 4))')
+        self.assertEqual(errors(code), [])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

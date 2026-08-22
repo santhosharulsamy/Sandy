@@ -145,6 +145,23 @@ SUPPORTED = [
     'print(acc)\n'
     't: int = 0\nfor i in range(8) {\n'
     ' try { if i == 5 { throw "s" }\n t += i } catch e { break } }\nprint(t)',
+    # first-class (top-level) functions: passing as arguments, storing in a
+    # typed variable, calling through it, two-arg function types, returning a
+    # function value and calling the result, and a fn value used in a loop
+    'fn apply(f: fn(int) -> int, x: int) -> int { return f(x) }\n'
+    'fn twice(n: int) -> int { return n * 2 }\n'
+    'fn inc(n: int) -> int { return n + 1 }\n'
+    'print(apply(twice, 5))\nprint(apply(inc, 5))\n'
+    'g: fn(int) -> int = twice\nprint(g(21))\n'
+    'fn combine(op: fn(int, int) -> int, a: int, b: int) -> int {\n'
+    ' return op(a, b) }\n'
+    'fn add(a: int, b: int) -> int { return a + b }\nprint(combine(add, 3, 4))\n'
+    'fn picker(which: bool) -> fn(int) -> int {\n'
+    ' if which { return twice }\n return inc }\n'
+    'print(picker(true)(10))\nprint(picker(false)(10))\n'
+    'fn is_hi(s: string) -> bool { return s == "hi" }\n'
+    'chk: fn(string) -> bool = is_hi\nprint(chk("hi"))\nprint(chk("no"))\n'
+    't: int = 0\nfor i in range(5) { t += apply(twice, i) }\nprint(t)',
 ]
 
 # Programs the native backend must reject with a clear error.
@@ -158,6 +175,9 @@ UNSUPPORTED = [
     'x = [1]\nprint(x.push(2))',          # unsupported (list) method
     'fn outer() { fn inner() { return 1 }\n return inner }',  # nested funcs
     'struct S { x }\np: S = S(1)',                      # untyped struct field
+    'fn call(f: fn, x: int) -> int { return f(x) }',   # bare fn (no signature)
+    'fn g(xs: list<int>) -> int { return len(xs) }\n'  # non-scalar fn-type
+    'fn h(f: fn(list<int>) -> int) -> int { return f([1]) }',
 ]
 
 

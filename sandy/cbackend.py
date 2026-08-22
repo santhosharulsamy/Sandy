@@ -20,6 +20,10 @@ where types make native code generation sound and worthwhile:
       Sandy's reference semantics (aliasing and mutation-through-calls behave
       identically to the interpreter)
     * functions with typed parameters and a return type, incl. recursion
+    * first-class functions: a top-level function used as a value (passed,
+      stored in a `fn(int) -> int`-typed variable, returned, and called
+      through) compiles to a plain C function pointer — no boxing. Capturing
+      nested closures are still rejected (they need a heap environment)
     * arithmetic, comparisons, and/or/not, unary minus
     * strings: concatenation (+), repetition (*), ordering, len(), str(),
       and the .upper()/.lower()/.trim()/.length() methods
@@ -43,8 +47,9 @@ of macros. By default they are never freed — fine for the short-lived programs
 this backend targets. Building with `sandy build --gc` (`-DSANDY_GC`) instead
 routes every allocation through a conservative mark-sweep garbage collector, so
 long-running programs keep their memory bounded; correctness and iteration
-order are identical either way. Dynamic `any` values and closures are not yet
-supported natively.
+order are identical either way. Dynamic `any` values and capturing closures
+(nested functions that close over enclosing variables) are not yet supported
+natively.
 """
 
 from .errors import SandyError
@@ -329,6 +334,45 @@ def _map_kv(t):
     return None
 
 
+# Single-letter type codes for mangling native function-pointer typedef names.
+_CODE = {"int": "i", "float": "d", "bool": "b", "string": "s"}
+
+
+def _split_top(s):
+    """Split a top-level comma list, respecting <> and () nesting."""
+    parts, depth, start = [], 0, 0
+    for i, ch in enumerate(s):
+        if ch in "<(":
+            depth += 1
+        elif ch in ">)":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            parts.append(s[start:i]); start = i + 1
+    parts.append(s[start:])
+    return parts
+
+
+def _fn_sig(t):
+    """(params, ret) of a precise function type `fn(...)->R`, or None if `t`
+    isn't one. ret is None for a void function. Bare `fn` returns None (it is
+    not a native type — the native backend needs a concrete signature)."""
+    if not (isinstance(t, str) and t.startswith("fn(")):
+        return None
+    depth = 0
+    for i in range(2, len(t)):
+        if t[i] == "(":
+            depth += 1
+        elif t[i] == ")":
+            depth -= 1
+            if depth == 0:
+                inner = t[3:i].strip()
+                rest = t[i + 1:]
+                params = [p.strip() for p in _split_top(inner)] if inner else []
+                ret = rest[2:].strip() if rest.startswith("->") else None
+                return params, (None if ret in (None, "", "nil", "void") else ret)
+    return None
+
+
 def _list_runtime(et):
     """C source for a growable list of element type `et` (int/float/...)."""
     sfx, ct = _ELEM[et]
@@ -473,6 +517,7 @@ class CBackend:
         self.structs_needed = []   # struct names used, in definition order
         self.lists_needed = set()  # element types of lists used (for runtime)
         self.maps_needed = set()   # (key, value) type pairs of maps used
+        self.fnptrs = {}           # fn-type string -> C typedef name
         self._tmp = 0
         # C variables holding the saved handler stack to restore on a non-local
         # exit from a `try` (return -> function entry, break/continue -> loop
@@ -532,19 +577,41 @@ class CBackend:
             if t not in self.structs_needed:
                 self.structs_needed.append(t)
             return f"SyStruct_{t}*"
+        fs = _fn_sig(t)
+        if fs is not None:
+            return self._fnptr(t, fs)
         if t not in C_TYPE:
             raise NativeUnsupported(f"unsupported native type '{t or 'any'}'", None)
         return C_TYPE[t]
 
+    def _fnptr(self, t, fs):
+        """C typedef name for a native function type, registering it on first
+        use. Parameters and return must be scalar/string (or void return)."""
+        params, ret = fs
+        for pt in params:
+            if pt not in C_TYPE:
+                raise NativeUnsupported(
+                    f"native function-type parameters must be int/float/bool/"
+                    f"string, not '{pt}' (in '{t}')", None)
+        if ret is not None and ret not in C_TYPE:
+            raise NativeUnsupported(
+                f"native function-type return must be int/float/bool/string or "
+                f"void, not '{ret}' (in '{t}')", None)
+        if t not in self.fnptrs:
+            code = "".join(_CODE[p] for p in params) or "v"
+            self.fnptrs[t] = f"SyFn_{code}_{_CODE[ret] if ret else 'v'}"
+        return self.fnptrs[t]
+
     def _czero(self, t):
         if (_list_base(t) is not None or _map_kv(t) is not None
-                or t in self.structs):
+                or t in self.structs or _fn_sig(t) is not None):
             return "NULL"
         return _ZERO[t]
 
     def _is_native_type(self, t):
         return (t in C_TYPE or t in self.structs
-                or _list_base(t) is not None or _map_kv(t) is not None)
+                or _list_base(t) is not None or _map_kv(t) is not None
+                or _fn_sig(t) is not None)
 
     def _newtmp(self):
         self._tmp += 1
@@ -1083,9 +1150,16 @@ class CBackend:
             return (_cstr(e.value), "string")
         if t is N.Identifier:
             if e.name not in scope:
+                if e.name in self.funcs:
+                    # A top-level function used as a first-class value: the C
+                    # function name decays to a function pointer.
+                    ftype = self._fn_type_of(e.name)
+                    self._cty(ftype)  # register the fn-pointer typedef
+                    return (e.name, ftype)
                 raise NativeUnsupported(
                     f"'{e.name}' is not a supported native value here "
-                    f"(only parameters, locals, and typed globals)", e.line)
+                    f"(only parameters, locals, typed globals, and top-level "
+                    f"functions)", e.line)
             return (e.name, scope[e.name])
         if t is N.UnaryOp:
             code, ct = self._expr(e.operand, scope, sig)
@@ -1286,22 +1360,37 @@ class CBackend:
             return (f"pow((double)({lc}), (double)({rc}))", "float")
         raise NativeUnsupported(f"operator '{op}' not supported natively", line)
 
+    def _fn_type_of(self, name):
+        """The fn(...) type string for a top-level function `name`."""
+        s = self.funcs[name]
+        inner = ",".join(s.ptypes)
+        return f"fn({inner})->{s.ret}" if s.ret else f"fn({inner})"
+
     def _call(self, e, scope, sig, allow_void):
         # Method call: s.upper(), s.lower(), s.trim(), s.length()
         if isinstance(e.callee, N.Attribute):
             return self._method_call(e, scope, sig)
-        if not isinstance(e.callee, N.Identifier):
+        if isinstance(e.callee, N.Identifier):
+            name = e.callee.name
+            # A fn-typed local/param shadows a same-named function as a value.
+            is_value = name in scope and _fn_sig(scope[name]) is not None
+            if not is_value:
+                if name in _NATIVE_BUILTINS:
+                    return self._builtin_call(name, e, scope, sig)
+                if name in self.structs:
+                    return self._construct(name, e, scope, sig)
+                if name in self.funcs:
+                    return self._direct_call(name, e, scope, sig, allow_void)
+        # Otherwise the callee must evaluate to a typed function value.
+        cc, ct = self._expr(e.callee, scope, sig)
+        fs = _fn_sig(ct)
+        if fs is None:
             raise NativeUnsupported(
-                "native calls must be to named functions", e.line)
-        name = e.callee.name
-        if name in _NATIVE_BUILTINS:
-            return self._builtin_call(name, e, scope, sig)
-        if name in self.structs:
-            return self._construct(name, e, scope, sig)
-        if name not in self.funcs:
-            raise NativeUnsupported(
-                f"'{name}' cannot be called in native mode (only user "
-                f"functions, structs, and len/str are supported)", e.line)
+                "native calls must target a named function, struct, builtin, "
+                f"or a typed function value, not a {ct}", e.line)
+        return self._call_value(cc, fs, e, scope, sig, allow_void)
+
+    def _direct_call(self, name, e, scope, sig, allow_void):
         fn = self.funcs[name]
         if len(e.args) != len(fn.params):
             raise NativeUnsupported(
@@ -1309,7 +1398,7 @@ class CBackend:
                 f"got {len(e.args)}", e.line)
         parts = []
         for arg, pt in zip(e.args, fn.ptypes):
-            ac, at = self._expr(arg, scope, sig)
+            ac, at = self._expr_for(arg, scope, sig, pt)
             self._check_assignable(pt, at, e.line, f"argument to {name}")
             if pt == "float" and at == "int":
                 ac = f"(double)({ac})"
@@ -1319,6 +1408,25 @@ class CBackend:
                 f"{name}() returns nothing and cannot be used as a value",
                 e.line)
         return (f"{name}({', '.join(parts)})", fn.ret)
+
+    def _call_value(self, cc, fs, e, scope, sig, allow_void):
+        params, ret = fs
+        if len(e.args) != len(params):
+            raise NativeUnsupported(
+                f"function value expects {len(params)} argument(s), "
+                f"got {len(e.args)}", e.line)
+        parts = []
+        for arg, pt in zip(e.args, params):
+            ac, at = self._expr_for(arg, scope, sig, pt)
+            self._check_assignable(pt, at, e.line, "argument to function value")
+            if pt == "float" and at == "int":
+                ac = f"(double)({ac})"
+            parts.append(ac)
+        if ret is None and not allow_void:
+            raise NativeUnsupported(
+                "this function value returns nothing and cannot be used as a "
+                "value", e.line)
+        return (f"({cc})({', '.join(parts)})", ret)
 
     def _builtin_call(self, name, e, scope, sig):
         if name == "push":
@@ -1467,6 +1575,13 @@ class CBackend:
             f"static int sy_eq_{n}(SyStruct_{n}*, SyStruct_{n}*);\n"
             for n in needed)
         struct_helpers = "".join(self._struct_helpers(n) for n in needed)
+        # Function-pointer typedefs (all registered by now: from signatures via
+        # the protos above and from function values used in the bodies).
+        fnptr_decls = "".join(
+            f"typedef {(C_TYPE[_fn_sig(t)[1]] if _fn_sig(t)[1] else 'void')} "
+            f"(*{name})({', '.join(C_TYPE[p] for p in _fn_sig(t)[0]) or 'void'});"
+            "\n"
+            for t, name in self.fnptrs.items())
         parts = [
             "#include <stdio.h>",
             "#include <math.h>",
@@ -1483,6 +1598,7 @@ class CBackend:
             struct_body,
             struct_protos,
             struct_helpers,
+            fnptr_decls,
             "\n".join(protos),
             "",
             "\n\n".join(sections),

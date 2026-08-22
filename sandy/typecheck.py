@@ -67,15 +67,24 @@ class ModuleType:
 
 def type_name(t):
     if isinstance(t, FuncType):
-        return "function"
+        if t.params is None:
+            return "fn"
+        return (f"fn({', '.join(type_name(p) for p in t.params)}) -> "
+                f"{type_name(t.ret)}")
     if isinstance(t, StructDecl):
         return t.name
     return t if t is not None else "any"
 
 
 def _norm(t):
-    """Normalize an annotation (None -> 'any')."""
-    return "any" if t is None else t
+    """Normalize an annotation (None -> 'any'; a function type -> FuncType)."""
+    if t is None:
+        return "any"
+    if isinstance(t, str) and (t == "fn" or t.startswith("fn(")):
+        params, ret = _fn_sig(t)
+        return FuncType(None if params is None else [_norm(p) for p in params],
+                        _norm(ret))
+    return t
 
 
 def _base(t):
@@ -86,17 +95,39 @@ def _base(t):
 
 
 def _split_top(s):
-    """Split a comma list at the top nesting level: 'string,list<int>'."""
+    """Split a comma list at the top nesting level, respecting both <> and ()
+    so function types nest correctly: 'string,fn(int,int)->int'."""
     parts, depth, start = [], 0, 0
     for i, ch in enumerate(s):
-        if ch == "<":
+        if ch in "<(":
             depth += 1
-        elif ch == ">":
+        elif ch in ">)":
             depth -= 1
         elif ch == "," and depth == 0:
             parts.append(s[start:i]); start = i + 1
     parts.append(s[start:])
     return parts
+
+
+def _fn_sig(t):
+    """Parse a function-type string. Returns (params, ret):
+    'fn(int,int)->int' -> (['int','int'], 'int'); 'fn(int)' -> (['int'], 'nil');
+    'fn' -> (None, 'any') for the fully-gradual bare form."""
+    if t == "fn":
+        return None, "any"
+    depth = 0
+    for i in range(2, len(t)):  # scan from the '(' after 'fn'
+        if t[i] == "(":
+            depth += 1
+        elif t[i] == ")":
+            depth -= 1
+            if depth == 0:
+                inner = t[3:i].strip()
+                rest = t[i + 1:]
+                params = [p.strip() for p in _split_top(inner)] if inner else []
+                ret = rest[2:].strip() if rest.startswith("->") else "nil"
+                return params, (ret or "nil")
+    return None, "any"
 
 
 def _type_args(t):
@@ -226,6 +257,13 @@ class TypeChecker:
         """Report a type annotation that names no known type."""
         if t is None:
             return
+        if isinstance(t, str) and (t == "fn" or t.startswith("fn(")):
+            params, ret = _fn_sig(t)
+            if params is not None:
+                for p in params:
+                    self._check_type(p, line)
+                self._check_type(ret, line)
+            return
         base = _base(t)
         if base in ("list", "map"):
             for arg in _type_args(t):
@@ -282,11 +320,12 @@ class TypeChecker:
             if node.annotation is not None:
                 # Annotated declaration: value must fit the annotation.
                 self._check_type(node.annotation, node.line)
-                if not assignable(node.annotation, value_t):
+                ann = _norm(node.annotation)
+                if not assignable(ann, value_t):
                     self.error(
                         f"cannot assign {type_name(value_t)} to '{target.name}' "
-                        f"declared as {type_name(node.annotation)}", node.line)
-                scope.define(target.name, node.annotation)
+                        f"declared as {type_name(ann)}", node.line)
+                scope.define(target.name, ann)
             else:
                 declared = scope.get(target.name)
                 if isinstance(declared, str) and declared not in ("any", None):
@@ -422,6 +461,8 @@ class TypeChecker:
                             node.args[i].line)
             return callee_t.name   # an instance's type is the struct's name
         if isinstance(callee_t, FuncType):
+            if callee_t.params is None:
+                return callee_t.ret  # bare `fn`: fully gradual, no arity check
             if isinstance(node.callee, (N.Identifier, N.Attribute)):
                 fname = node.callee.name + "()"
             else:

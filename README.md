@@ -350,14 +350,17 @@ The native backend handles Sandy's **typed core**:
   across call frames, and built-in runtime errors (division by zero,
   out-of-range index, missing map key) are catchable, exactly as in the
   interpreter
+- **first-class functions** — a top-level function typed as `fn(int) -> int`
+  can be passed as an argument, stored in a variable, returned, and called
+  through; it compiles to a plain C function pointer (no boxing)
 - functions, recursion, loops, conditionals
 
 Compiled this way, typed code runs at native (C) speed: `fib(35)` takes about
 **0.02s** as a compiled binary versus roughly **96s** on the VM, and list
 operations run ~**100×** faster per element than the VM. Features outside this
-core (closures, dynamic `any`, heterogeneous collections) are reported
-clearly — run those with `sandy run` or `sandy --vm` instead. A C compiler
-(`cc`, `gcc`, or `clang`) is required.
+core (capturing closures, dynamic `any`, heterogeneous collections) are
+reported clearly — run those with `sandy run` or `sandy --vm` instead. A C
+compiler (`cc`, `gcc`, or `clang`) is required.
 
 Native heap values (strings, lists, maps, structs) leak by default — fine for
 short-lived tools, where leak-and-exit is the fastest thing to do. For
@@ -388,6 +391,18 @@ fn make_counter() {
 next = make_counter()
 print(next())   # 1
 print(next())   # 2
+```
+
+Functions can also be **typed**, so the checker verifies calls made through
+them and they compile natively:
+
+```sandy
+fn apply(f: fn(int) -> int, x: int) -> int {
+    return f(x)
+}
+fn twice(n: int) -> int { return n * 2 }
+
+print(apply(twice, 21))   # 42
 ```
 
 ### Lists
