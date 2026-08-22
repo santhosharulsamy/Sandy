@@ -23,6 +23,9 @@ where types make native code generation sound and worthwhile:
     * strings: concatenation (+), repetition (*), ordering, len(), str(),
       and the .upper()/.lower()/.trim()/.length() methods
     * if / elif / else, while, for i in range(...), break, continue, return
+    * try / catch / throw: a setjmp/longjmp handler stack; the caught value is
+      the error message string, and built-in runtime errors (division by zero,
+      index/key errors) are catchable, exactly as in the interpreter
     * print(...) of scalars, lists, and interpolated strings
 
 Anything outside this subset raises NativeUnsupported with a clear message,
@@ -158,6 +161,28 @@ static void* sy_gc_realloc(void* old, size_t n) {
 """
 
 _HELPERS = r"""
+/* Exception runtime for try/catch/throw. Handlers form a stack of setjmp
+   buffers; `throw` longjmps to the innermost one (or prints and exits if
+   there is none). The caught value is the error message string, exactly as
+   the interpreter binds it to the catch variable. sy_throw copies the message
+   onto the heap so it survives the stack unwind; there is no allocation
+   between setting sy_err_msg and the catch binding it to a (stack-rooted)
+   local, so it is safe under the GC. */
+typedef struct SyHandler { jmp_buf env; struct SyHandler* prev; } SyHandler;
+static SyHandler* sy_handlers = NULL;
+static const char* sy_err_msg = NULL;
+__attribute__((noreturn))
+static void sy_throw(const char* msg, int line) {
+    if (sy_handlers) {
+        size_t n = strlen(msg);
+        char* m = (char*)SY_ALLOC(n + 1);
+        memcpy(m, msg, n + 1);
+        sy_err_msg = m;
+        longjmp(sy_handlers->env, 1);
+    }
+    fprintf(stderr, "RuntimeError (line %d): %s\n", line, msg);
+    exit(1);
+}
 static long long sy_ipow(long long base, long long exp) {
     long long r = 1;
     while (exp > 0) { if (exp & 1) r *= base; base *= base; exp >>= 1; }
@@ -174,11 +199,11 @@ static double sy_fmod(double a, double b) {
     return m;
 }
 static double sy_divf(double a, double b, int line) {
-    if (b == 0) { fprintf(stderr, "RuntimeError (line %d): division by zero\n", line); exit(1); }
+    if (b == 0) sy_throw("division by zero", line);
     return a / b;
 }
 static long long sy_ckz(long long b, int line) {
-    if (b == 0) { fprintf(stderr, "RuntimeError (line %d): modulo by zero\n", line); exit(1); }
+    if (b == 0) sy_throw("modulo by zero", line);
     return b;
 }
 static void sy_pf(double v) {
@@ -186,9 +211,8 @@ static void sy_pf(double v) {
     else printf("%g", v);
 }
 /* String runtime. Sandy strings are immutable; these helpers return freshly
-   heap-allocated buffers. Memory is not reclaimed yet (a garbage collector is
-   a later roadmap item), which is fine for the short-lived programs the native
-   backend currently targets. */
+   heap-allocated buffers (via SY_ALLOC, so they are reclaimed under -DSANDY_GC
+   and leak otherwise). */
 static char* sy_concat(const char* a, const char* b) {
     size_t la = strlen(a), lb = strlen(b);
     char* r = (char*)SY_ALLOC(la + lb + 1);
@@ -321,13 +345,13 @@ static SyList_{sfx}* sy_lpush_{sfx}(SyList_{sfx}* L, {ct} v) {{
     L->data[L->len++] = v; return L;
 }}
 static {ct} sy_lget_{sfx}(SyList_{sfx}* L, long long i, int line) {{
-    if (i < 0) i += L->len;
-    if (i < 0 || i >= L->len) {{ fprintf(stderr, "RuntimeError (line %d): list index out of range\\n", line); exit(1); }}
+    long long o = i; if (i < 0) i += L->len;
+    if (i < 0 || i >= L->len) {{ char b[80]; snprintf(b, sizeof b, "index %lld out of range (length %lld)", o, L->len); sy_throw(b, line); }}
     return L->data[i];
 }}
 static void sy_lset_{sfx}(SyList_{sfx}* L, long long i, {ct} v, int line) {{
-    if (i < 0) i += L->len;
-    if (i < 0 || i >= L->len) {{ fprintf(stderr, "RuntimeError (line %d): list index out of range\\n", line); exit(1); }}
+    long long o = i; if (i < 0) i += L->len;
+    if (i < 0 || i >= L->len) {{ char b[80]; snprintf(b, sizeof b, "index %lld out of range (length %lld)", o, L->len); sy_throw(b, line); }}
     L->data[i] = v;
 }}
 """
@@ -359,11 +383,13 @@ def _map_runtime(kt, vt):
     vs, vc = _ELEM[vt]
     mt = f"SyMap_{ks}_{vs}"
     if kt == "string":
-        notfound = ('fprintf(stderr, "RuntimeError (line %d): key \'%s\' not '
-                    'found in map\\n", line, k);')
+        notfound = ('{ char* _b = (char*)SY_ALLOC(strlen(k) + 40); '
+                    'sprintf(_b, "key \'%s\' not found in map", k); '
+                    'sy_throw(_b, line); }')
     else:
-        notfound = ('fprintf(stderr, "RuntimeError (line %d): key %lld not '
-                    'found in map\\n", line, k);')
+        notfound = ('{ char _b[64]; snprintf(_b, sizeof _b, '
+                    '"key %lld not found in map", (long long)k); '
+                    'sy_throw(_b, line); }')
     return f"""
 typedef struct {{ {kc}* keys; {vc}* vals; char* used; {kc}* order;
                   long long cap, len, ocap; }} {mt};
@@ -399,7 +425,7 @@ static void sy_mput_{ks}_{vs}({mt}* m, {kc} k, {vc} v) {{
 static {vc} sy_mget_{ks}_{vs}({mt}* m, {kc} k, int line) {{
     unsigned long h = sy_hash_{ks}(k) & (unsigned long)(m->cap - 1);
     while (m->used[h]) {{ if (sy_keq_{ks}(m->keys[h], k)) return m->vals[h]; h = (h + 1) & (unsigned long)(m->cap - 1); }}
-    {notfound} exit(1);
+    {notfound}
 }}
 static int sy_mhas_{ks}_{vs}({mt}* m, {kc} k) {{
     unsigned long h = sy_hash_{ks}(k) & (unsigned long)(m->cap - 1);
@@ -426,6 +452,11 @@ class CBackend:
         self.lists_needed = set()  # element types of lists used (for runtime)
         self.maps_needed = set()   # (key, value) type pairs of maps used
         self._tmp = 0
+        # C variables holding the saved handler stack to restore on a non-local
+        # exit from a `try` (return -> function entry, break/continue -> loop
+        # entry). None when the current function contains no `try`.
+        self._hsave_func = None
+        self._hsave_loop = None
 
     # -- entry --
     def compile(self, program):
@@ -516,12 +547,23 @@ class CBackend:
         sig = self.funcs[fd.name]
         scope = dict(zip(sig.params, sig.ptypes))
         locals_ = self._infer_locals(fd.body, scope, sig)
-        params = ", ".join(f"{self._cty(t)} {n}"
+        has_try = self._has_try(fd.body)
+        # Locals and parameters modified inside a try body have indeterminate
+        # values after a longjmp unless volatile, so qualify them when the
+        # function uses try. A top-level volatile on a parameter doesn't change
+        # the function's type, so the (unqualified) prototype still matches.
+        vol = "volatile " if has_try else ""
+        params = ", ".join(f"{self._cty(t)} {vol}{n}"
                            for n, t in zip(sig.params, sig.ptypes))
         ret_c = self._cty(sig.ret) if sig.ret else "void"
         lines = [f"{ret_c} {fd.name}({params or 'void'}) {{"]
         for n, t in locals_:
-            lines.append(f"    {self._cty(t)} {n} = {self._czero(t)};")
+            lines.append(f"    {self._cty(t)} {vol}{n} = {self._czero(t)};")
+        self._hsave_func = None
+        self._hsave_loop = None
+        if has_try:
+            self._hsave_func = "_hsave"
+            lines.append("    SyHandler* _hsave = sy_handlers;")
         lines += self._emit_block(fd.body, scope, sig, 1)
         lines.append("}")
         return "\n".join(lines)
@@ -535,12 +577,35 @@ class CBackend:
         lines.append("#ifdef SANDY_GC")
         lines.append("    sy_gc_init(__builtin_frame_address(0));")
         lines.append("#endif")
+        has_try = self._has_try(block)
+        vol = "volatile " if has_try else ""
         for n, t in locals_:
-            lines.append(f"    {self._cty(t)} {n} = {self._czero(t)};")
+            lines.append(f"    {self._cty(t)} {vol}{n} = {self._czero(t)};")
+        self._hsave_func = None
+        self._hsave_loop = None
+        if has_try:
+            self._hsave_func = "_hsave"
+            lines.append("    SyHandler* _hsave = sy_handlers;")
         lines += self._emit_block(block, scope, pseudo, 1)
         lines.append("    return 0;")
         lines.append("}")
         return "\n".join(lines)
+
+    def _has_try(self, block):
+        """Whether a block contains a `try` anywhere in its control flow."""
+        for s in block.statements:
+            t = type(s)
+            if t is N.Try:
+                return True
+            if t is N.If:
+                if any(self._has_try(b) for _, b in s.branches):
+                    return True
+                if s.else_block is not None and self._has_try(s.else_block):
+                    return True
+            elif t is N.While or t is N.For:
+                if self._has_try(s.body):
+                    return True
+        return False
 
     # -- local hoisting / type inference --
     def _infer_locals(self, block, scope, sig):
@@ -587,6 +652,19 @@ class CBackend:
                         scope[s.var] = vt
                         found.append((s.var, vt))
                     visit(s.body)
+                elif t is N.Try:
+                    # The catch variable is bound to the error message string.
+                    cv = s.catch_var
+                    if cv not in scope:
+                        scope[cv] = "string"
+                        found.append((cv, "string"))
+                    elif scope[cv] != "string":
+                        raise NativeUnsupported(
+                            f"catch variable '{cv}' is also used as "
+                            f"{scope[cv]}; in native mode it must be a string",
+                            s.line)
+                    visit(s.body)
+                    visit(s.handler)
                 elif t is N.FuncDef:
                     raise NativeUnsupported(
                         "nested functions are not supported in native mode yet",
@@ -646,15 +724,24 @@ class CBackend:
             return lines
         if t is N.While:
             cc = self._bool(s.cond, scope, sig)
-            lines = [f"{ind}while ({cc}) {{"]
+            lines = []
+            saved = self._enter_loop(lines, ind)
+            lines.append(f"{ind}while ({cc}) {{")
             lines += self._emit_block(s.body, scope, sig, indent + 1)
             lines.append(f"{ind}}}")
+            self._hsave_loop = saved
             return lines
         if t is N.For:
             return self._emit_for(s, scope, sig, indent)
         if t is N.Return:
+            # A try left via return must restore the handler stack to the
+            # function's entry state so it isn't stranded. The return value is
+            # computed *before* the restore (into a temp), so a throw in the
+            # return expression is still caught by the enclosing try.
+            restore = self._hsave_func
             if s.value is None:
-                return [f"{ind}return;"]
+                pre = [f"{ind}sy_handlers = {restore};"] if restore else []
+                return pre + [f"{ind}return;"]
             if sig.ret is None:
                 raise NativeUnsupported(
                     "this native function returns a value but has no return "
@@ -663,16 +750,26 @@ class CBackend:
             self._check_assignable(sig.ret, vt, s.line, "return value")
             if sig.ret == "float" and vt == "int":
                 code = f"(double)({code})"
+            if restore:
+                tmp = self._newtmp()
+                return [f"{ind}{self._cty(sig.ret)} {tmp} = {code};",
+                        f"{ind}sy_handlers = {restore};",
+                        f"{ind}return {tmp};"]
             return [f"{ind}return {code};"]
         if t is N.Break:
-            return [f"{ind}break;"]
+            pre = ([f"{ind}sy_handlers = {self._hsave_loop};"]
+                   if self._hsave_loop else [])
+            return pre + [f"{ind}break;"]
         if t is N.Continue:
-            return [f"{ind}continue;"]
-        if t is N.Try or t is N.Throw:
-            raise NativeUnsupported(
-                "try/catch/throw is dynamic control flow and is not supported "
-                "by the native backend; run it with the interpreter or `--vm`",
-                getattr(s, "line", None))
+            pre = ([f"{ind}sy_handlers = {self._hsave_loop};"]
+                   if self._hsave_loop else [])
+            return pre + [f"{ind}continue;"]
+        if t is N.Throw:
+            code, vt = self._expr(s.value, scope, sig)
+            return [f"{ind}sy_throw({self._stringify(code, vt, s.line)}, "
+                    f"{s.line});"]
+        if t is N.Try:
+            return self._emit_try(s, scope, sig, indent)
         if t is N.StructDef:
             return []   # declarations are emitted from compile(), not inline
         if t is N.Import:
@@ -682,6 +779,47 @@ class CBackend:
         raise NativeUnsupported(
             f"{type(s).__name__} is not supported in native mode",
             getattr(s, "line", None))
+
+    def _enter_loop(self, lines, ind):
+        """Record the handler stack at loop entry (when the function uses try)
+        so break/continue can restore it. Returns the prior loop-save var to
+        put back once the loop body has been emitted."""
+        saved = self._hsave_loop
+        if self._hsave_func:
+            var = self._newtmp()
+            lines.append(f"{ind}SyHandler* {var} = sy_handlers;")
+            self._hsave_loop = var
+        return saved
+
+    def _emit_try(self, s, scope, sig, indent):
+        ind = "    " * indent
+        h = "_h" + self._newtmp()
+        lines = [f"{ind}{{",
+                 f"{ind}    SyHandler {h}; {h}.prev = sy_handlers; "
+                 f"sy_handlers = &{h};",
+                 f"{ind}    if (setjmp({h}.env) == 0) {{"]
+        lines += self._emit_block(s.body, scope, sig, indent + 2)
+        lines.append(f"{ind}        sy_handlers = {h}.prev;")
+        lines.append(f"{ind}    }} else {{")
+        lines.append(f"{ind}        sy_handlers = {h}.prev;")
+        lines.append(f"{ind}        {s.catch_var} = sy_err_msg;")
+        lines += self._emit_block(s.handler, scope, sig, indent + 2)
+        lines.append(f"{ind}    }}")
+        lines.append(f"{ind}}}")
+        return lines
+
+    def _stringify(self, code, typ, line):
+        """A `const char*` C expression for the Sandy string form of `code`."""
+        if typ == "string":
+            return code
+        if typ == "int":
+            return f"sy_from_ll({code})"
+        if typ == "float":
+            return f"sy_from_double({code})"
+        if typ == "bool":
+            return f'(({code}) ? "true" : "false")'
+        raise NativeUnsupported(
+            f"cannot convert a {typ} to a string in native mode", line)
 
     def _emit_field_set(self, s, scope, sig, ind):
         target = s.target
@@ -781,9 +919,13 @@ class CBackend:
                     s.line)
             step = str(step_val)
         cmp = ">" if step.startswith("-") else "<"
-        lines = [f"{ind}for ({v} = {start}; {v} {cmp} {stop}; {v} += {step}) {{"]
+        lines = []
+        saved = self._enter_loop(lines, ind)
+        lines.append(
+            f"{ind}for ({v} = {start}; {v} {cmp} {stop}; {v} += {step}) {{")
         lines += self._emit_block(s.body, scope, sig, indent + 1)
         lines.append(f"{ind}}}")
+        self._hsave_loop = saved
         return lines
 
     def _emit_for_list(self, s, scope, sig, indent):
@@ -807,13 +949,15 @@ class CBackend:
             elem = f"{m}->order[{i}]"    # iterating a map yields its keys
             head = f"SyMap_{ks}_{vs}* {m} = {code};"
             length = f"{m}->len"
-        lines = [
-            f"{ind}{{ {head}",
+        lines = [f"{ind}{{ {head}"]
+        saved = self._enter_loop(lines, ind)
+        lines += [
             f"{ind}for (long long {i} = 0; {i} < {length}; {i}++) {{",
             f"{ind}    {s.var} = {elem};",
         ]
         lines += self._emit_block(s.body, scope, sig, indent + 1)
         lines.append(f"{ind}}} }}")
+        self._hsave_loop = saved
         return lines
 
     def _emit_print(self, args, scope, sig, ind):
@@ -1200,15 +1344,7 @@ class CBackend:
                 f"native len() supports strings, lists and maps, got {at}",
                 e.line)
         # str(x): convert a scalar to its Sandy string form
-        if at == "string":
-            return (ac, "string")
-        if at == "int":
-            return (f"sy_from_ll({ac})", "string")
-        if at == "float":
-            return (f"sy_from_double({ac})", "string")
-        if at == "bool":
-            return (f"(({ac}) ? \"true\" : \"false\")", "string")
-        raise NativeUnsupported(f"cannot str() a {at} in native mode", e.line)
+        return (self._stringify(ac, at, e.line), "string")
 
     def _method_call(self, e, scope, sig):
         method = e.callee.name
@@ -1294,6 +1430,7 @@ class CBackend:
             "#include <string.h>",
             "#include <stdlib.h>",
             "#include <ctype.h>",
+            "#include <setjmp.h>",
             _GC_RUNTIME,
             _HELPERS,
             list_rt,

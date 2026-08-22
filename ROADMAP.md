@@ -123,6 +123,13 @@ Turn Sandy into real machine code and single-file binaries.
       construction, field access/mutation, value equality, printing, nesting —
       heap-allocated for reference semantics (aliasing + mutation-through-calls
       match the interpreter). Struct fields of list/map type are future work.
+- [x] Native **try / catch / throw**: a setjmp/longjmp handler stack. `throw`
+      unwinds across call frames to the innermost handler; the caught value is
+      the error message string, and built-in runtime errors (division by zero,
+      out-of-range index, missing map key) are catchable — all matching the
+      interpreter. Locals in a function that uses `try` are made `volatile` for
+      longjmp-safety, and the handler stack is restored on every non-local exit
+      (return/break/continue), so only programs that use `try` pay any cost.
 - [ ] Heterogeneous/dynamic lists and maps (a tagged-value runtime)
 - [x] Garbage collection: `sandy build --gc` routes every native allocation
       through a conservative mark-sweep collector (setjmp register flush +
@@ -131,7 +138,7 @@ Turn Sandy into real machine code and single-file binaries.
       an allocation-heavy loop stays flat (~10 MB) where the leaking build
       climbs to hundreds of MB. Off by default (leak-and-go is faster for
       short-lived tools).
-- [ ] Dynamic `any` values, closures, list/map struct fields
+- [ ] Dynamic `any` values, closures, list/map struct fields, network I/O
 - [ ] Consider an LLVM backend once the C route is fully proven
 - **Measured:** `fib(35)` runs in **~0.02s** as a native binary vs **~96s**
   on the VM — several thousand× faster. Typed numeric Sandy now runs at C
@@ -142,7 +149,9 @@ Turn Sandy into real machine code and single-file binaries.
 ### Stage 5 — Real programs need a real language 🎈🛡️ — *in progress*
 - [x] Error handling: `try` / `catch` / `throw` (interpreter + VM, with sound
       cross-frame unwinding; the caught value is the error message string).
-      Native rejects it as dynamic control flow.
+      Also compiles natively: a setjmp/longjmp handler stack, with built-in
+      runtime errors (division by zero, index/key errors) catchable exactly as
+      in the interpreter.
 - [x] File I/O: `read_file`, `read_lines`, `write_file`, `append_file`
 - [x] Modules: `import "file.sy" as name` — namespaced imports resolved
       relative to the importing file, run once (cached), with circular-import

@@ -345,6 +345,10 @@ The native backend handles Sandy's **typed core**:
 - **structs** with typed fields — construction, field access/mutation, value
   equality, printing, and nesting; heap-allocated so they keep Sandy's
   reference semantics
+- **try / catch / throw** — a setjmp/longjmp handler stack; `throw` unwinds
+  across call frames, and built-in runtime errors (division by zero,
+  out-of-range index, missing map key) are catchable, exactly as in the
+  interpreter
 - functions, recursion, loops, conditionals
 
 Compiled this way, typed code runs at native (C) speed: `fib(35)` takes about

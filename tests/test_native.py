@@ -104,6 +104,28 @@ SUPPORTED = [
     # reference semantics: aliasing and mutation through a call
     'struct Box { n: int }\nfn bump(b: Box) { b.n += 100 }\n'
     'a: Box = Box(1)\nb: Box = a\nb.n = 42\nprint(a.n)\nbump(a)\nprint(a.n)',
+    # try/catch/throw: explicit throw, caught built-in errors (div-by-zero,
+    # list index, map key), return-from-try, nesting/rethrow, break-from-try,
+    # cross-frame unwinding, and a local mutated in a try then read after
+    'fn sdiv(a: float, b: float) -> float {\n'
+    ' try { return a / b } catch e { return -1.0 } }\n'
+    'fn at(xs: list<int>, i: int) -> int {\n'
+    ' try { return xs[i] } catch e { return -999 } }\n'
+    'fn deep(n: int) -> int { if n == 0 { throw "bottom" }\n'
+    ' return deep(n - 1) }\n'
+    'print(sdiv(10.0, 0.0))\nprint(sdiv(9.0, 2.0))\n'
+    'a: list<int> = [7, 8, 9]\nprint(at(a, 1))\nprint(at(a, 50))\n'
+    'try { throw "boom" } catch m { print("c1: " + m) }\n'
+    'try { x: int = 42\n throw x } catch m { print("c2: " + m) }\n'
+    'try { try { throw "in" } catch e { throw "re-" + e } }\n'
+    ' catch e { print("c3: " + e) }\n'
+    'try { deep(4) } catch e { print("c4: " + e) }\n'
+    'mp: map<string, int> = {"a": 1}\n'
+    'try { print(mp["z"]) } catch e { print("c5: " + e) }\n'
+    'acc: int = 100\ntry { acc = 205\n throw "y" } catch e { acc += 1 }\n'
+    'print(acc)\n'
+    't: int = 0\nfor i in range(8) {\n'
+    ' try { if i == 5 { throw "s" }\n t += i } catch e { break } }\nprint(t)',
 ]
 
 # Programs the native backend must reject with a clear error.

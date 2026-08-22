@@ -392,9 +392,11 @@ Sandy has two interpreters that produce identical results:
 
 A **native backend** (`sandy build file.sy`) transpiles the statically typed
 subset — scalars (`int`, `float`, `bool`, `string`), typed `list<T>` and
-`map<K,V>`, typed functions, and control flow — to C and compiles it with the
-system C compiler. Dynamic features (untyped values, closures, structs,
-modules, error handling) are reported as unsupported rather than mis-compiled.
+`map<K,V>`, structs, typed functions, control flow, and `try`/`catch`/`throw` —
+to C and compiles it with the system C compiler. Heap memory leaks by default
+(fine for short-lived tools); `sandy build --gc` adds a conservative garbage
+collector for long-running programs. Dynamic features (untyped `any` values,
+closures, modules) are reported as unsupported rather than mis-compiled.
 
 ---
 
