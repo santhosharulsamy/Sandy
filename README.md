@@ -341,6 +341,9 @@ The native backend handles Sandy's **typed core**:
 - **typed maps** `map<K,V>` (`K` int/string) — literals, get, set, `has`,
   `len`, `keys`, `values`, `for`-iteration, and printing — compiled to an
   unboxed open-addressing hash table (insertion order preserved)
+- **structs** with typed fields — construction, field access/mutation, value
+  equality, printing, and nesting; heap-allocated so they keep Sandy's
+  reference semantics
 - functions, recursion, loops, conditionals
 
 Compiled this way, typed code runs at native (C) speed: `fib(35)` takes about

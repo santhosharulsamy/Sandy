@@ -119,10 +119,14 @@ Turn Sandy into real machine code and single-file binaries.
       open-addressing hash table: literals, get, set, `has`, `len`, `keys`,
       `values`, for-iteration and printing — with growth/rehash and
       insertion-order tracking so output/iteration match the interpreter.
+- [x] Native **structs** with typed scalar/string/struct fields:
+      construction, field access/mutation, value equality, printing, nesting —
+      heap-allocated for reference semantics (aliasing + mutation-through-calls
+      match the interpreter). Struct fields of list/map type are future work.
 - [ ] Heterogeneous/dynamic lists and maps (a tagged-value runtime)
-- [ ] Garbage collection (native strings/lists/maps currently leak — fine for
-      short programs, not for long-running ones)
-- [ ] Dynamic `any` values, closures
+- [ ] Garbage collection (native heap values currently leak — fine for
+      short-lived tools, not for long-running ones)
+- [ ] Dynamic `any` values, closures, list/map struct fields
 - [ ] Consider an LLVM backend once the C route is fully proven
 - **Measured:** `fib(35)` runs in **~0.02s** as a native binary vs **~96s**
   on the VM — several thousand× faster. Typed numeric Sandy now runs at C

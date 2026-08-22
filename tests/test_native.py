@@ -90,6 +90,18 @@ SUPPORTED = [
     'print(keys(m))\nprint(values(m))\n'
     'nums: map<int, string> = {1: "one", 2: "two"}\nprint(nums)\n'
     'for n in keys(nums) { print(nums[n]) }',
+    # structs: construction, field access/mutation, functions, equality,
+    # printing, nesting, and reference semantics
+    'struct Point { x: int, y: int }\n'
+    'fn move(p: Point, dx: int) -> Point { return Point(p.x + dx, p.y) }\n'
+    'p: Point = Point(1, 2)\np.x = 10\np.y += 5\nprint(p)\n'
+    'q: Point = move(p, 3)\nprint(q)\n'
+    'print(Point(1, 1) == Point(1, 1))\nprint(Point(1, 1) == Point(1, 2))\n'
+    'struct Line { a: Point, b: Point }\n'
+    'seg: Line = Line(Point(0, 0), Point(3, 4))\nprint(seg)\nprint(seg.b.x)',
+    # reference semantics: aliasing and mutation through a call
+    'struct Box { n: int }\nfn bump(b: Box) { b.n += 100 }\n'
+    'a: Box = Box(1)\nb: Box = a\nb.n = 42\nprint(a.n)\nbump(a)\nprint(a.n)',
 ]
 
 # Programs the native backend must reject with a clear error.
@@ -102,6 +114,8 @@ UNSUPPORTED = [
     'print(keys({}))',                    # unsupported builtin
     'x = [1]\nprint(x.push(2))',          # unsupported (list) method
     'fn outer() { fn inner() { return 1 }\n return inner }',  # nested funcs
+    'struct S { items: list<int> }\nx: S = S([1, 2])',  # list field (unsupported)
+    'struct S { x }\np: S = S(1)',                      # untyped struct field
 ]
 
 

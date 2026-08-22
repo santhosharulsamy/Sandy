@@ -14,6 +14,10 @@ where types make native code generation sound and worthwhile:
       for-iteration (over keys), and printing — an unboxed open-addressing
       hash table that also tracks insertion order so output/iteration match
       the interpreter
+    * structs with typed fields (scalar/string/struct fields): construction,
+      field access and mutation, value equality, printing, and nesting —
+      heap-allocated so they keep Sandy's reference semantics (aliasing and
+      mutation-through-calls behave identically to the interpreter)
     * functions with typed parameters and a return type, incl. recursion
     * arithmetic, comparisons, and/or/not, unary minus
     * strings: concatenation (+), repetition (*), ordering, len(), str(),
@@ -324,19 +328,40 @@ class _Sig:
 class CBackend:
     def __init__(self):
         self.funcs = {}
+        self.structs = {}          # name -> (fields, field_types)
+        self.structs_needed = []   # struct names used, in definition order
         self.lists_needed = set()  # element types of lists used (for runtime)
         self.maps_needed = set()   # (key, value) type pairs of maps used
         self._tmp = 0
 
     # -- entry --
     def compile(self, program):
+        structdefs = [s for s in program.statements if isinstance(s, N.StructDef)]
         funcdefs = [s for s in program.statements if isinstance(s, N.FuncDef)]
-        topstmts = [s for s in program.statements if not isinstance(s, N.FuncDef)]
+        topstmts = [s for s in program.statements
+                    if not isinstance(s, (N.FuncDef, N.StructDef))]
+        for sd in structdefs:
+            self.structs[sd.name] = (list(sd.fields), list(sd.field_types))
+        for sd in structdefs:
+            self._validate_struct(sd)
         for fd in funcdefs:
             self._register(fd)
         sections = [self._emit_function(fd) for fd in funcdefs]
         main_body = self._emit_main(topstmts)
         return self._assemble(sections, main_body)
+
+    def _validate_struct(self, sd):
+        # Fields must be typed as a scalar, a string, or another struct.
+        for fname, ft in zip(sd.fields, sd.field_types):
+            if ft is None:
+                raise NativeUnsupported(
+                    f"native struct '{sd.name}' needs a type on field "
+                    f"'{fname}' (e.g. `{fname}: int`)", sd.line)
+            if ft not in C_TYPE and ft not in self.structs:
+                raise NativeUnsupported(
+                    f"native struct field '{sd.name}.{fname}' must be a scalar, "
+                    f"string, or struct type, not '{ft}' (list/map fields aren't "
+                    f"supported by the native backend yet)", sd.line)
 
     # C type / zero-value for a (possibly list/map) Sandy type.
     def _cty(self, t):
@@ -357,14 +382,23 @@ class CBackend:
                     f"not map<{kt},{vt}>", None)
             self.maps_needed.add((kt, vt))
             return f"SyMap_{_KEY[kt][0]}_{_ELEM[vt][0]}*"
+        if t in self.structs:
+            if t not in self.structs_needed:
+                self.structs_needed.append(t)
+            return f"SyStruct_{t}*"
         if t not in C_TYPE:
             raise NativeUnsupported(f"unsupported native type '{t or 'any'}'", None)
         return C_TYPE[t]
 
     def _czero(self, t):
-        if _list_base(t) is not None or _map_kv(t) is not None:
+        if (_list_base(t) is not None or _map_kv(t) is not None
+                or t in self.structs):
             return "NULL"
         return _ZERO[t]
+
+    def _is_native_type(self, t):
+        return (t in C_TYPE or t in self.structs
+                or _list_base(t) is not None or _map_kv(t) is not None)
 
     def _newtmp(self):
         self._tmp += 1
@@ -372,14 +406,13 @@ class CBackend:
 
     def _register(self, fd):
         for pt in fd.param_types:
-            if pt not in C_TYPE and _list_base(pt) is None and _map_kv(pt) is None:
+            if not self._is_native_type(pt):
                 raise NativeUnsupported(
                     f"native function '{fd.name}' needs typed parameters "
-                    f"(int/float/bool/string/list<T>/map<K,V>); got "
+                    f"(int/float/bool/string/list<T>/map<K,V>/struct); got "
                     f"'{pt or 'any'}'", fd.line)
         ret = fd.ret_type
-        if ret is not None and ret not in C_TYPE and _list_base(ret) is None \
-                and _map_kv(ret) is None:
+        if ret is not None and not self._is_native_type(ret):
             raise NativeUnsupported(
                 f"native function '{fd.name}' has unsupported return type "
                 f"'{ret}'", fd.line)
@@ -421,8 +454,8 @@ class CBackend:
             for s in b.statements:
                 t = type(s)
                 if t is N.Assign:
-                    if isinstance(s.target, N.Index):
-                        continue  # index assignment declares no new variable
+                    if isinstance(s.target, (N.Index, N.Attribute)):
+                        continue  # field/index assignment declares no new variable
                     if not isinstance(s.target, N.Identifier):
                         raise NativeUnsupported(
                             "native mode supports only simple variable "
@@ -430,8 +463,7 @@ class CBackend:
                     name = s.target.name
                     if s.annotation is not None:
                         vt = s.annotation
-                        if vt not in C_TYPE and _list_base(vt) is None \
-                                and _map_kv(vt) is None:
+                        if not self._is_native_type(vt):
                             raise NativeUnsupported(
                                 f"unsupported native type '{vt}'", s.line)
                     elif s.op != "=":  # compound needs existing var
@@ -486,6 +518,8 @@ class CBackend:
         if t is N.Assign:
             if isinstance(s.target, N.Index):
                 return self._emit_index_set(s, scope, sig, ind)
+            if isinstance(s.target, N.Attribute):
+                return self._emit_field_set(s, scope, sig, ind)
             name = s.target.name
             declared = scope[name]
             if s.op == "=":
@@ -544,9 +578,7 @@ class CBackend:
                 "by the native backend; run it with the interpreter or `--vm`",
                 getattr(s, "line", None))
         if t is N.StructDef:
-            raise NativeUnsupported(
-                "structs are not supported by the native backend yet; run "
-                "with the interpreter or `--vm`", getattr(s, "line", None))
+            return []   # declarations are emitted from compile(), not inline
         if t is N.Import:
             raise NativeUnsupported(
                 "import is not supported by the native backend; run with the "
@@ -554,6 +586,27 @@ class CBackend:
         raise NativeUnsupported(
             f"{type(s).__name__} is not supported in native mode",
             getattr(s, "line", None))
+
+    def _emit_field_set(self, s, scope, sig, ind):
+        target = s.target
+        tc, tt = self._expr(target.target, scope, sig)
+        if tt not in self.structs:
+            raise NativeUnsupported(
+                f"cannot set field '{target.name}' on a {tt}", s.line)
+        fields, ftypes = self.structs[tt]
+        if target.name not in fields:
+            raise NativeUnsupported(f"{tt} has no field '{target.name}'", s.line)
+        ft = ftypes[fields.index(target.name)]
+        lhs = f"({tc})->{target.name}"
+        if s.op == "=":
+            vc, vt = self._expr(s.value, scope, sig)
+        else:
+            vc, vt = self._binary(
+                N.BinaryOp(s.op[0], target, s.value, s.line), scope, sig)
+        self._check_assignable(ft, vt, s.line, f"field '{target.name}'")
+        if ft == "float" and vt == "int":
+            vc = f"(double)({vc})"
+        return [f"{ind}{lhs} = {vc};"]
 
     def _emit_index_set(self, s, scope, sig, ind):
         target = s.target
@@ -701,6 +754,8 @@ class CBackend:
             return self._emit_list_print(code, t, ind)
         if _map_kv(t) is not None:
             return self._emit_map_print(code, t, ind)
+        if t in self.structs:
+            return [f"{ind}sy_print_{t}({code});"]
         raise NativeUnsupported(f"cannot print a {t} value in native mode",
                                 getattr(expr, "line", None))
 
@@ -793,9 +848,41 @@ class CBackend:
             return self._map_literal(e, scope, sig, None)
         if t is N.Index:
             return self._index(e, scope, sig)
+        if t is N.Attribute:
+            return self._field(e, scope, sig)
         raise NativeUnsupported(
             f"{type(e).__name__} expressions are not supported in native mode",
             getattr(e, "line", None))
+
+    def _construct(self, name, e, scope, sig):
+        fields, ftypes = self.structs[name]
+        if len(e.args) != len(fields):
+            raise NativeUnsupported(
+                f"{name}() expects {len(fields)} field(s) "
+                f"({', '.join(fields)}), got {len(e.args)}", e.line)
+        if name not in self.structs_needed:
+            self.structs_needed.append(name)
+        tmp = self._newtmp()
+        stmts = [f"SyStruct_{name}* {tmp} = "
+                 f"(SyStruct_{name}*)malloc(sizeof(SyStruct_{name}));"]
+        for fname, ft, arg in zip(fields, ftypes, e.args):
+            ac, at = self._expr(arg, scope, sig)
+            self._check_assignable(ft, at, e.line, f"field '{fname}' of {name}")
+            if ft == "float" and at == "int":
+                ac = f"(double)({ac})"
+            stmts.append(f"{tmp}->{fname} = {ac};")
+        return ("({ " + " ".join(stmts) + f" {tmp}; }})", name)
+
+    def _field(self, e, scope, sig):
+        tc, tt = self._expr(e.target, scope, sig)
+        if tt not in self.structs:
+            raise NativeUnsupported(
+                f"'.{e.name}' field access needs a struct, got {tt}", e.line)
+        fields, ftypes = self.structs[tt]
+        if e.name not in fields:
+            raise NativeUnsupported(
+                f"{tt} has no field '{e.name}'", e.line)
+        return (f"({tc})->{e.name}", ftypes[fields.index(e.name)])
 
     def _map_literal(self, e, scope, sig, expected):
         kt = vt = None
@@ -886,6 +973,9 @@ class CBackend:
                 return (f"(strcmp({lc}, {rc}) {cmp} 0)", "bool")
             if lt in _NUM and rt in _NUM or (lt == rt == "bool"):
                 return (f"({lc} {op} {rc})", "bool")
+            if lt == rt and lt in self.structs:
+                eq = f"sy_eq_{lt}({lc}, {rc})"
+                return ((eq if op == "==" else f"(!{eq})"), "bool")
             raise NativeUnsupported(
                 f"cannot compare {lt} and {rt} in native mode", line)
         if op in ("<", ">", "<=", ">="):
@@ -928,10 +1018,12 @@ class CBackend:
         name = e.callee.name
         if name in _NATIVE_BUILTINS:
             return self._builtin_call(name, e, scope, sig)
+        if name in self.structs:
+            return self._construct(name, e, scope, sig)
         if name not in self.funcs:
             raise NativeUnsupported(
                 f"'{name}' cannot be called in native mode (only user "
-                f"functions and len/str are supported)", e.line)
+                f"functions, structs, and len/str are supported)", e.line)
         fn = self.funcs[name]
         if len(e.args) != len(fn.params):
             raise NativeUnsupported(
@@ -1084,6 +1176,22 @@ class CBackend:
                          for kt in ("string", "int")
                          for vt in ("int", "float", "string", "bool")
                          if (kt, vt) in self.maps_needed)
+        # Expand needed structs to include those referenced by struct fields.
+        i = 0
+        while i < len(self.structs_needed):
+            for ft in self.structs[self.structs_needed[i]][1]:
+                if ft in self.structs and ft not in self.structs_needed:
+                    self.structs_needed.append(ft)
+            i += 1
+        needed = self.structs_needed
+        struct_fwd = "".join(f"typedef struct SyStruct_{n} SyStruct_{n};\n"
+                             for n in needed)
+        struct_body = "".join(self._struct_body(n) for n in needed)
+        struct_protos = "".join(
+            f"static void sy_print_{n}(SyStruct_{n}*);\n"
+            f"static int sy_eq_{n}(SyStruct_{n}*, SyStruct_{n}*);\n"
+            for n in needed)
+        struct_helpers = "".join(self._struct_helpers(n) for n in needed)
         parts = [
             "#include <stdio.h>",
             "#include <math.h>",
@@ -1094,6 +1202,10 @@ class CBackend:
             list_rt,
             key_rt,
             map_rt,
+            struct_fwd,
+            struct_body,
+            struct_protos,
+            struct_helpers,
             "\n".join(protos),
             "",
             "\n\n".join(sections),
@@ -1102,6 +1214,44 @@ class CBackend:
             "",
         ]
         return "\n".join(parts)
+
+    def _struct_body(self, name):
+        fields, ftypes = self.structs[name]
+        if fields:
+            decls = " ".join(f"{self._cty(ft)} {fn};"
+                             for fn, ft in zip(fields, ftypes))
+        else:
+            decls = "char _unused;"
+        return f"struct SyStruct_{name} {{ {decls} }};\n"
+
+    def _field_repr(self, code, ft):
+        if ft in self.structs:
+            return f"sy_print_{ft}({code});"
+        return self._scalar_repr(code, ft)
+
+    def _field_eq(self, a, b, ft):
+        if ft in self.structs:
+            return f"sy_eq_{ft}({a}, {b})"
+        if ft == "string":
+            return f"(strcmp({a}, {b}) == 0)"
+        return f"({a} == {b})"
+
+    def _struct_helpers(self, name):
+        fields, ftypes = self.structs[name]
+        out = [f"static void sy_print_{name}(SyStruct_{name}* v) {{",
+               f'    fputs("{name}(", stdout);']
+        for i, (fn, ft) in enumerate(zip(fields, ftypes)):
+            if i:
+                out.append('    fputs(", ", stdout);')
+            out.append(f'    fputs("{fn}=", stdout);')
+            out.append("    " + self._field_repr(f"v->{fn}", ft))
+        out.append('    fputs(")", stdout);')
+        out.append("}")
+        conds = " && ".join(self._field_eq(f"a->{fn}", f"b->{fn}", ft)
+                            for fn, ft in zip(fields, ftypes)) or "1"
+        out.append(f"static int sy_eq_{name}(SyStruct_{name}* a, "
+                   f"SyStruct_{name}* b) {{ return {conds}; }}")
+        return "\n".join(out) + "\n"
 
 
 def to_c(program):
