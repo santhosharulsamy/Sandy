@@ -119,10 +119,12 @@ Turn Sandy into real machine code and single-file binaries.
       open-addressing hash table: literals, get, set, `has`, `len`, `keys`,
       `values`, for-iteration and printing — with growth/rehash and
       insertion-order tracking so output/iteration match the interpreter.
-- [x] Native **structs** with typed scalar/string/struct fields:
-      construction, field access/mutation, value equality, printing, nesting —
-      heap-allocated for reference semantics (aliasing + mutation-through-calls
-      match the interpreter). Struct fields of list/map type are future work.
+- [x] Native **structs** with typed scalar/string/struct/list/map fields:
+      construction, field access/mutation, deep value equality (including list
+      and map fields), printing, nesting — heap-allocated for reference
+      semantics (aliasing + mutation-through-calls match the interpreter).
+      List and map fields support access, indexing, iteration, `push`, and
+      whole-field reassignment; `==` on lists and maps also compiles natively.
 - [x] Native **try / catch / throw**: a setjmp/longjmp handler stack. `throw`
       unwinds across call frames to the innermost handler; the caught value is
       the error message string, and built-in runtime errors (division by zero,
@@ -138,7 +140,7 @@ Turn Sandy into real machine code and single-file binaries.
       an allocation-heavy loop stays flat (~10 MB) where the leaking build
       climbs to hundreds of MB. Off by default (leak-and-go is faster for
       short-lived tools).
-- [ ] Dynamic `any` values, closures, list/map struct fields, network I/O
+- [ ] Dynamic `any` values, closures, network I/O
 - [ ] Consider an LLVM backend once the C route is fully proven
 - **Measured:** `fib(35)` runs in **~0.02s** as a native binary vs **~96s**
   on the VM — several thousand× faster. Typed numeric Sandy now runs at C

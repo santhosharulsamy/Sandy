@@ -342,7 +342,8 @@ The native backend handles Sandy's **typed core**:
 - **typed maps** `map<K,V>` (`K` int/string) — literals, get, set, `has`,
   `len`, `keys`, `values`, `for`-iteration, and printing — compiled to an
   unboxed open-addressing hash table (insertion order preserved)
-- **structs** with typed fields — construction, field access/mutation, value
+- **structs** with typed fields (scalars, strings, structs, and `list<T>` /
+  `map<K,V>` fields) — construction, field access/mutation, deep value
   equality, printing, and nesting; heap-allocated so they keep Sandy's
   reference semantics
 - **try / catch / throw** — a setjmp/longjmp handler stack; `throw` unwinds

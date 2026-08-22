@@ -14,10 +14,11 @@ where types make native code generation sound and worthwhile:
       for-iteration (over keys), and printing — an unboxed open-addressing
       hash table that also tracks insertion order so output/iteration match
       the interpreter
-    * structs with typed fields (scalar/string/struct fields): construction,
-      field access and mutation, value equality, printing, and nesting —
-      heap-allocated so they keep Sandy's reference semantics (aliasing and
-      mutation-through-calls behave identically to the interpreter)
+    * structs with typed fields (scalar/string/struct/list/map fields):
+      construction, field access and mutation, value equality (deep, including
+      list and map fields), printing, and nesting — heap-allocated so they keep
+      Sandy's reference semantics (aliasing and mutation-through-calls behave
+      identically to the interpreter)
     * functions with typed parameters and a return type, incl. recursion
     * arithmetic, comparisons, and/or/not, unary minus
     * strings: concatenation (+), repetition (*), ordering, len(), str(),
@@ -331,6 +332,8 @@ def _map_kv(t):
 def _list_runtime(et):
     """C source for a growable list of element type `et` (int/float/...)."""
     sfx, ct = _ELEM[et]
+    elem_eq = ("strcmp(a->data[i], b->data[i]) == 0" if et == "string"
+               else "a->data[i] == b->data[i]")
     return f"""
 typedef struct {{ {ct}* data; long long len, cap; }} SyList_{sfx};
 static SyList_{sfx}* sy_lnew_{sfx}(void) {{
@@ -353,6 +356,12 @@ static void sy_lset_{sfx}(SyList_{sfx}* L, long long i, {ct} v, int line) {{
     long long o = i; if (i < 0) i += L->len;
     if (i < 0 || i >= L->len) {{ char b[80]; snprintf(b, sizeof b, "index %lld out of range (length %lld)", o, L->len); sy_throw(b, line); }}
     L->data[i] = v;
+}}
+static int sy_leq_{sfx}(SyList_{sfx}* a, SyList_{sfx}* b) {{
+    if (a == b) return 1;
+    if (!a || !b || a->len != b->len) return 0;
+    for (long long i = 0; i < a->len; i++) if (!({elem_eq})) return 0;
+    return 1;
 }}
 """
 
@@ -382,6 +391,9 @@ def _map_runtime(kt, vt):
     ks, kc = _KEY[kt]
     vs, vc = _ELEM[vt]
     mt = f"SyMap_{ks}_{vs}"
+    _ga = f"sy_mget_{ks}_{vs}(a, k, 0)"
+    _gb = f"sy_mget_{ks}_{vs}(b, k, 0)"
+    val_eq = f"strcmp({_ga}, {_gb}) == 0" if vt == "string" else f"{_ga} == {_gb}"
     if kt == "string":
         notfound = ('{ char* _b = (char*)SY_ALLOC(strlen(k) + 40); '
                     'sprintf(_b, "key \'%s\' not found in map", k); '
@@ -432,6 +444,16 @@ static int sy_mhas_{ks}_{vs}({mt}* m, {kc} k) {{
     while (m->used[h]) {{ if (sy_keq_{ks}(m->keys[h], k)) return 1; h = (h + 1) & (unsigned long)(m->cap - 1); }}
     return 0;
 }}
+static int sy_meq_{ks}_{vs}({mt}* a, {mt}* b) {{
+    if (a == b) return 1;
+    if (!a || !b || a->len != b->len) return 0;
+    for (long long i = 0; i < a->len; i++) {{
+        {kc} k = a->order[i];
+        if (!sy_mhas_{ks}_{vs}(b, k)) return 0;
+        if (!({val_eq})) return 0;
+    }}
+    return 1;
+}}
 """
 
 
@@ -475,17 +497,17 @@ class CBackend:
         return self._assemble(sections, main_body)
 
     def _validate_struct(self, sd):
-        # Fields must be typed as a scalar, a string, or another struct.
+        # Fields must be a scalar, string, struct, or a typed list/map.
         for fname, ft in zip(sd.fields, sd.field_types):
             if ft is None:
                 raise NativeUnsupported(
                     f"native struct '{sd.name}' needs a type on field "
                     f"'{fname}' (e.g. `{fname}: int`)", sd.line)
-            if ft not in C_TYPE and ft not in self.structs:
+            if not self._is_native_type(ft):
                 raise NativeUnsupported(
                     f"native struct field '{sd.name}.{fname}' must be a scalar, "
-                    f"string, or struct type, not '{ft}' (list/map fields aren't "
-                    f"supported by the native backend yet)", sd.line)
+                    f"string, struct, list<T>, or map<K,V> type, not '{ft}'",
+                    sd.line)
 
     # C type / zero-value for a (possibly list/map) Sandy type.
     def _cty(self, t):
@@ -833,7 +855,7 @@ class CBackend:
         ft = ftypes[fields.index(target.name)]
         lhs = f"({tc})->{target.name}"
         if s.op == "=":
-            vc, vt = self._expr(s.value, scope, sig)
+            vc, vt = self._expr_for(s.value, scope, sig, ft)
         else:
             vc, vt = self._binary(
                 N.BinaryOp(s.op[0], target, s.value, s.line), scope, sig)
@@ -1094,6 +1116,15 @@ class CBackend:
             f"{type(e).__name__} expressions are not supported in native mode",
             getattr(e, "line", None))
 
+    def _expr_for(self, e, scope, sig, expected):
+        """Like _expr, but types a bare list/map literal from the expected type
+        so an empty literal (e.g. `[]`) can infer its element/value types."""
+        if isinstance(e, N.ListLit):
+            return self._list_literal(e, scope, sig, expected)
+        if isinstance(e, N.MapLit):
+            return self._map_literal(e, scope, sig, expected)
+        return self._expr(e, scope, sig)
+
     def _construct(self, name, e, scope, sig):
         fields, ftypes = self.structs[name]
         if len(e.args) != len(fields):
@@ -1106,7 +1137,7 @@ class CBackend:
         stmts = [f"SyStruct_{name}* {tmp} = "
                  f"(SyStruct_{name}*)SY_ALLOC(sizeof(SyStruct_{name}));"]
         for fname, ft, arg in zip(fields, ftypes, e.args):
-            ac, at = self._expr(arg, scope, sig)
+            ac, at = self._expr_for(arg, scope, sig, ft)
             self._check_assignable(ft, at, e.line, f"field '{fname}' of {name}")
             if ft == "float" and at == "int":
                 ac = f"(double)({ac})"
@@ -1215,6 +1246,13 @@ class CBackend:
                 return (f"({lc} {op} {rc})", "bool")
             if lt == rt and lt in self.structs:
                 eq = f"sy_eq_{lt}({lc}, {rc})"
+                return ((eq if op == "==" else f"(!{eq})"), "bool")
+            if lt == rt and _list_base(lt) is not None:
+                eq = f"sy_leq_{_ELEM[_list_base(lt)][0]}({lc}, {rc})"
+                return ((eq if op == "==" else f"(!{eq})"), "bool")
+            if lt == rt and _map_kv(lt) is not None:
+                kt, vt = _map_kv(lt)
+                eq = f"sy_meq_{_KEY[kt][0]}_{_ELEM[vt][0]}({lc}, {rc})"
                 return ((eq if op == "==" else f"(!{eq})"), "bool")
             raise NativeUnsupported(
                 f"cannot compare {lt} and {rt} in native mode", line)
@@ -1397,6 +1435,19 @@ class CBackend:
             params = ", ".join(self._cty(t) for t in sig.ptypes) or "void"
             ret_c = self._cty(sig.ret) if sig.ret else "void"
             protos.append(f"{ret_c} {name}({params});")
+        # Expand needed structs to include those referenced by struct fields,
+        # and register the list/map runtimes those fields require — this must
+        # run before the list/map runtimes are emitted below.
+        i = 0
+        while i < len(self.structs_needed):
+            for ft in self.structs[self.structs_needed[i]][1]:
+                if ft in self.structs:
+                    if ft not in self.structs_needed:
+                        self.structs_needed.append(ft)
+                else:
+                    self._cty(ft)  # records lists_needed / maps_needed
+            i += 1
+        needed = self.structs_needed
         # List/map runtimes must precede everything that uses their structs.
         list_rt = "".join(_list_runtime(et)
                           for et in ("int", "float", "string", "bool")
@@ -1408,14 +1459,6 @@ class CBackend:
                          for kt in ("string", "int")
                          for vt in ("int", "float", "string", "bool")
                          if (kt, vt) in self.maps_needed)
-        # Expand needed structs to include those referenced by struct fields.
-        i = 0
-        while i < len(self.structs_needed):
-            for ft in self.structs[self.structs_needed[i]][1]:
-                if ft in self.structs and ft not in self.structs_needed:
-                    self.structs_needed.append(ft)
-            i += 1
-        needed = self.structs_needed
         struct_fwd = "".join(f"typedef struct SyStruct_{n} SyStruct_{n};\n"
                              for n in needed)
         struct_body = "".join(self._struct_body(n) for n in needed)
@@ -1458,14 +1501,24 @@ class CBackend:
             decls = "char _unused;"
         return f"struct SyStruct_{name} {{ {decls} }};\n"
 
-    def _field_repr(self, code, ft):
+    def _field_repr(self, code, ft, ind):
         if ft in self.structs:
-            return f"sy_print_{ft}({code});"
-        return self._scalar_repr(code, ft)
+            return [f"{ind}sy_print_{ft}({code});"]
+        if _list_base(ft) is not None:
+            return self._emit_list_print(code, ft, ind)
+        if _map_kv(ft) is not None:
+            return self._emit_map_print(code, ft, ind)
+        return [f"{ind}{self._scalar_repr(code, ft)}"]
 
     def _field_eq(self, a, b, ft):
         if ft in self.structs:
             return f"sy_eq_{ft}({a}, {b})"
+        et = _list_base(ft)
+        if et is not None:
+            return f"sy_leq_{_ELEM[et][0]}({a}, {b})"
+        kv = _map_kv(ft)
+        if kv is not None:
+            return f"sy_meq_{_KEY[kv[0]][0]}_{_ELEM[kv[1]][0]}({a}, {b})"
         if ft == "string":
             return f"(strcmp({a}, {b}) == 0)"
         return f"({a} == {b})"
@@ -1478,7 +1531,7 @@ class CBackend:
             if i:
                 out.append('    fputs(", ", stdout);')
             out.append(f'    fputs("{fn}=", stdout);')
-            out.append("    " + self._field_repr(f"v->{fn}", ft))
+            out += self._field_repr(f"v->{fn}", ft, "    ")
         out.append('    fputs(")", stdout);')
         out.append("}")
         conds = " && ".join(self._field_eq(f"a->{fn}", f"b->{fn}", ft)

@@ -104,6 +104,25 @@ SUPPORTED = [
     # reference semantics: aliasing and mutation through a call
     'struct Box { n: int }\nfn bump(b: Box) { b.n += 100 }\n'
     'a: Box = Box(1)\nb: Box = a\nb.n = 42\nprint(a.n)\nbump(a)\nprint(a.n)',
+    # struct fields of list<T> and map<K,V> type: construction, printing,
+    # access/index/len/has, iteration, push/index-set/map-set mutation,
+    # whole-field reassignment (incl. an empty literal), value equality
+    # (list and map fields), and a nested struct holding collection fields
+    'struct Bag { name: string, items: list<int>, tags: map<string, int> }\n'
+    'fn total(b: Bag) -> int { s: int = 0\n for x in b.items { s += x }\n'
+    ' return s }\n'
+    'b: Bag = Bag("f", [1, 2, 3], {"a": 1, "b": 2})\nprint(b)\n'
+    'print(b.items[1])\nprint(len(b.items))\nprint(b.tags["a"])\n'
+    'print(has(b.tags, "z"))\nprint(total(b))\n'
+    'push(b.items, 99)\nb.items[0] = 40\nprint(b.items)\nprint(total(b))\n'
+    'b.tags["c"] = 3\nb.tags["a"] = 10\nprint(b.tags)\n'
+    'b.items = []\npush(b.items, 7)\nprint(b.items)\n'
+    'p: Bag = Bag("x", [1, 2], {"k": 5})\nq: Bag = Bag("x", [1, 2], {"k": 5})\n'
+    'r: Bag = Bag("x", [1, 9], {"k": 5})\nprint(p == q)\nprint(p == r)\n'
+    'struct Wrap { inner: Bag, note: string }\n'
+    'w: Wrap = Wrap(Bag("in", [5, 6], {}), "hi")\nprint(w)\n'
+    'print(w.inner.items[0])\n'
+    'print([1, 2, 3] == [1, 2, 3])\nprint([1, 2] == [1, 2, 3])',
     # try/catch/throw: explicit throw, caught built-in errors (div-by-zero,
     # list index, map key), return-from-try, nesting/rethrow, break-from-try,
     # cross-frame unwinding, and a local mutated in a try then read after
@@ -138,7 +157,6 @@ UNSUPPORTED = [
     'print(keys({}))',                    # unsupported builtin
     'x = [1]\nprint(x.push(2))',          # unsupported (list) method
     'fn outer() { fn inner() { return 1 }\n return inner }',  # nested funcs
-    'struct S { items: list<int> }\nx: S = S([1, 2])',  # list field (unsupported)
     'struct S { x }\np: S = S(1)',                      # untyped struct field
 ]
 
