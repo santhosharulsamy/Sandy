@@ -309,5 +309,30 @@ class TestHttpRegistry(unittest.TestCase):
         self.assertEqual(out.getvalue(), "20\n")
 
 
+class TestTomlFallback(unittest.TestCase):
+    """The manifest reader used on Python < 3.11 (no stdlib tomllib)."""
+
+    def test_parses_the_manifest_subset(self):
+        text = ('[package]\nname = "app"\nversion = "0.1.0"\n\n'
+                '[dependencies]\n'
+                'geometry = { path = "../geometry" }\n'
+                'utils = "1.2.3"\n'
+                'webby = { git = "https://x/webby.git", rev = "main" }\n'
+                'debug = true\nport = 8080\n')
+        got = packages._parse_toml_subset(text)
+        self.assertEqual(got["package"], {"name": "app", "version": "0.1.0"})
+        self.assertEqual(got["dependencies"]["geometry"], {"path": "../geometry"})
+        self.assertEqual(got["dependencies"]["utils"], "1.2.3")
+        self.assertEqual(got["dependencies"]["webby"],
+                         {"git": "https://x/webby.git", "rev": "main"})
+        self.assertEqual(got["dependencies"]["debug"], True)
+        self.assertEqual(got["dependencies"]["port"], 8080)
+
+    def test_comment_and_hash_in_string(self):
+        got = packages._parse_toml_subset(
+            '# leading comment\n[package]\nname = "a#b"  # trailing\n')
+        self.assertEqual(got["package"]["name"], "a#b")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

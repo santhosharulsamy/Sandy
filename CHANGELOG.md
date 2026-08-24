@@ -44,4 +44,9 @@ All notable changes to Sandy are recorded here. The format is based on
 - A cross-runtime [benchmark suite](BENCHMARKS.md) comparing the interpreter,
   the VM, and native builds against CPython.
 
+### Fixed
+- The package manager no longer requires Python 3.11: `sandy.toml` manifests are
+  read with the standard-library `tomllib` when present and a small built-in
+  reader on Python 3.8–3.10, so the whole toolchain runs on Python 3.8+ again.
+
 [Unreleased]: https://github.com/santhosharulsamy/Sandy

@@ -28,7 +28,89 @@ import os
 import re
 import shutil
 import subprocess
-import tomllib
+
+try:  # tomllib is in the standard library only on Python 3.11+
+    import tomllib
+
+    _toml_error = tomllib.TOMLDecodeError
+
+    def _load_toml(f):
+        return tomllib.load(f)
+except ModuleNotFoundError:  # Python 3.8-3.10: read the manifest subset ourselves
+    class _toml_error(Exception):
+        pass
+
+    def _load_toml(f):
+        return _parse_toml_subset(f.read().decode("utf-8"))
+
+
+def _parse_toml_subset(text):
+    """A tiny reader for the subset of TOML that a `sandy.toml` manifest uses:
+    `[table]` headers, `key = "string"` / `key = true|false|<int>` pairs, and
+    inline tables `{ k = "v", ... }`. Enough for the manifest, no more; used
+    only when the standard-library `tomllib` is unavailable."""
+    def value(tok):
+        tok = tok.strip()
+        if tok.startswith('"') and tok.endswith('"') and len(tok) >= 2:
+            return tok[1:-1]
+        if tok.startswith("{") and tok.endswith("}"):
+            inner, table = tok[1:-1].strip(), {}
+            if inner:
+                for pair in _split_commas(inner):
+                    k, _, v = pair.partition("=")
+                    table[k.strip()] = value(v)
+            return table
+        if tok in ("true", "false"):
+            return tok == "true"
+        try:
+            return int(tok)
+        except ValueError:
+            raise _toml_error(f"cannot parse value: {tok!r}")
+
+    data, table = {}, None
+    for raw in text.splitlines():
+        line = raw.split("#", 1)[0].strip() if '"' not in raw else _strip_comment(raw)
+        if not line:
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            name = line[1:-1].strip()
+            table = data.setdefault(name, {})
+        elif "=" in line:
+            if table is None:
+                raise _toml_error(f"key outside any table: {line!r}")
+            key, _, val = line.partition("=")
+            table[key.strip()] = value(val)
+        else:
+            raise _toml_error(f"cannot parse line: {line!r}")
+    return data
+
+
+def _strip_comment(line):
+    """Strip a trailing `# comment` while respecting double-quoted strings."""
+    out, in_str = [], False
+    for ch in line:
+        if ch == '"':
+            in_str = not in_str
+        if ch == "#" and not in_str:
+            break
+        out.append(ch)
+    return "".join(out).strip()
+
+
+def _split_commas(text):
+    """Split on commas that are not inside a double-quoted string."""
+    parts, depth, in_str, cur = [], 0, False, []
+    for ch in text:
+        if ch == '"':
+            in_str = not in_str
+        if ch == "," and not in_str:
+            parts.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    if cur:
+        parts.append("".join(cur))
+    return [p for p in (p.strip() for p in parts) if p]
 
 MANIFEST = "sandy.toml"
 LOCKFILE = "sandy.lock"
@@ -280,8 +362,8 @@ def load_manifest(root):
         return None
     try:
         with open(path, "rb") as f:
-            data = tomllib.load(f)
-    except (OSError, tomllib.TOMLDecodeError) as e:
+            data = _load_toml(f)
+    except (OSError, _toml_error) as e:
         raise PackageError(f"{MANIFEST}: {e}")
     if not isinstance(data.get("package"), dict) or "name" not in data["package"]:
         raise PackageError(f"{MANIFEST}: a [package] table with a name is required")
