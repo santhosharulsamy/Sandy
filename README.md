@@ -8,6 +8,8 @@ already know most of Sandy. Programs live in `.sy` files.
 
 *Created and maintained by **Santhosh Arulsamy**.*
 
+▶️ **[Try Sandy live in your browser →](https://santhosharulsamy.github.io/Sandy/)** — no install, runs the real language right on the page.
+
 ```sandy
 fn greet(name) {
     return "Hello, " + name + "!"
@@ -30,9 +32,10 @@ walk-through in a few minutes, read **[_The Sandy Programming Language_](docs/bo
 — the complete book, cover to cover — or consult the terse
 **[Language Reference](docs/reference.md)** for exact rules.
 
-🏖️ **Try Sandy in your browser** — [`web/playground.html`](web/playground.html)
-runs the real implementation client-side via WebAssembly (open it locally or
-host it on any static site). No install required.
+🏖️ **Try Sandy in your browser** — the
+**[live playground](https://santhosharulsamy.github.io/Sandy/)** runs the real
+implementation client-side (nothing to install). The same page lives in the repo
+at [`web/playground.html`](web/playground.html) if you want to host your own.
 
 ---
 
