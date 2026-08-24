@@ -1,0 +1,51 @@
+# Sandy standard library: time helpers.
+#
+#     import "time" as time
+#     start = time.monotonic()
+#     do_work()
+#     print("took " + time.format(time.since(start)))
+#
+# Built on the `now`, `clock`, and `sleep` builtins. Use monotonic()/since()
+# for measuring durations, and epoch() for a wall-clock timestamp.
+
+# Wall-clock seconds since the epoch (a timestamp).
+fn epoch() {
+    return now()
+}
+
+# A monotonic reference point (only meaningful compared to another via since).
+fn monotonic() {
+    return clock()
+}
+
+# Seconds elapsed since a monotonic() marker.
+fn since(start) {
+    return clock() - start
+}
+
+# Pause for a number of milliseconds.
+fn sleep_ms(ms) {
+    sleep(ms / 1000)
+}
+
+fn _pad2(n) {
+    if n < 10 { return "0" + str(n) }
+    return str(n)
+}
+
+# A human-readable duration: "1h 02m 03s", "2m 05s", or "45s".
+fn format(seconds) {
+    s = seconds
+    if s < 0 { s = 0 - s }
+    total = floor(s)
+    hours = floor(total / 3600)
+    mins = floor((total % 3600) / 60)
+    secs = total % 60
+    if hours > 0 {
+        return str(hours) + "h " + _pad2(mins) + "m " + _pad2(secs) + "s"
+    }
+    if mins > 0 {
+        return str(mins) + "m " + _pad2(secs) + "s"
+    }
+    return str(secs) + "s"
+}

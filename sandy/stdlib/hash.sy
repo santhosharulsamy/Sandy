@@ -1,0 +1,19 @@
+# Sandy standard library: a small non-cryptographic string hash.
+#
+#     import "hash" as hash
+#     print(hash.djb2("hello"))     # a stable 32-bit integer
+#
+# For cryptographic digests use the global `sha256(s)` and `md5(s)` builtins
+# (hex strings). djb2 here is a fast, pure-Sandy hash for buckets, checksums,
+# and dedup keys — not for security.
+
+# Daniel J. Bernstein's djb2, reduced to 32 bits. Deterministic and additive
+# (no bitwise operators needed): h = h * 33 + code.
+fn djb2(s) {
+    h = 5381
+    modulus = 4294967296          # 2^32
+    for ch in s {
+        h = (h * 33 + ord(ch)) % modulus
+    }
+    return h
+}

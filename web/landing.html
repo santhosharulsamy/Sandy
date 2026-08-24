@@ -1,0 +1,388 @@
+<meta charset="utf-8">
+<title>Sandy</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+  :root {
+    /* light — warm paper, chosen greys biased to amber */
+    --bg: #f4f2ee;
+    --bg-raise: #fbfaf7;
+    --ink: #23201b;
+    --ink-soft: #5c554a;
+    --muted: #8c8375;
+    --line: #e3ddd2;
+    --amber: #b9741a;
+    --amber-bright: #d98a22;
+    --teal: #1f6f7c;
+    --code-bg: #201c17;
+    --code-ink: #ece4d7;
+    --shadow: 0 1px 2px rgba(35,32,27,.06), 0 10px 30px rgba(35,32,27,.07);
+    --ff-display: "Bricolage Grotesque", "Public Sans", system-ui, sans-serif;
+    --ff-body: "Public Sans", system-ui, -apple-system, sans-serif;
+    --ff-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14110e;
+      --bg-raise: #1e1a16;
+      --ink: #ede6db;
+      --ink-soft: #c3b8a6;
+      --muted: #a79c8c;
+      --line: #322c25;
+      --amber: #e8a13c;
+      --amber-bright: #f2b45c;
+      --teal: #5ac8c8;
+      --code-bg: #0f0d0a;
+      --code-ink: #ece4d7;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 18px 44px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14110e;
+    --bg-raise: #1e1a16;
+    --ink: #ede6db;
+    --ink-soft: #c3b8a6;
+    --muted: #a79c8c;
+    --line: #322c25;
+    --amber: #e8a13c;
+    --amber-bright: #f2b45c;
+    --teal: #5ac8c8;
+    --code-bg: #0f0d0a;
+    --code-ink: #ece4d7;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 18px 44px rgba(0,0,0,.5);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--ff-body);
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { width: 100%; max-width: 940px; margin: 0 auto; padding: 0 24px; }
+  a { color: inherit; }
+
+  /* ambient grain of "sand" — faint dotted field behind the hero */
+  .hero {
+    position: relative;
+    padding: 84px 0 40px;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image: radial-gradient(var(--line) 1px, transparent 1.4px);
+    background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(120% 80% at 20% 0%, #000 0%, transparent 68%);
+            mask-image: radial-gradient(120% 80% at 20% 0%, #000 0%, transparent 68%);
+    opacity: .5;
+    pointer-events: none;
+  }
+  .hero > * { position: relative; }
+
+  .brandline {
+    display: flex; align-items: baseline; gap: 14px;
+    font-family: var(--ff-mono);
+    font-size: 13px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .dotsy { color: var(--amber); }
+
+  h1.word {
+    font-family: var(--ff-display);
+    font-weight: 800;
+    font-size: clamp(58px, 13vw, 132px);
+    line-height: .92;
+    letter-spacing: -.03em;
+    margin: 18px 0 0;
+    text-wrap: balance;
+  }
+  h1 .cursor {
+    color: var(--amber);
+    -webkit-text-fill-color: var(--amber);
+  }
+  .thesis {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: clamp(21px, 3.4vw, 31px);
+    line-height: 1.25;
+    letter-spacing: -.01em;
+    max-width: 20ch;
+    margin: 26px 0 0;
+    text-wrap: balance;
+  }
+  .thesis b { color: var(--amber); font-weight: 700; }
+  .sub {
+    color: var(--ink-soft);
+    max-width: 58ch;
+    margin: 20px 0 0;
+    font-size: 18px;
+  }
+
+  .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-family: var(--ff-mono); font-size: 14px; font-weight: 500;
+    text-decoration: none; padding: 12px 18px; border-radius: 9px;
+    border: 1px solid transparent; transition: transform .12s ease, background .2s ease;
+  }
+  .btn:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+  .btn.primary { background: var(--amber); color: #1a1408; font-weight: 700; }
+  .btn.primary:hover { transform: translateY(-2px); background: var(--amber-bright); }
+  .btn.ghost { border-color: var(--line); color: var(--ink); background: var(--bg-raise); }
+  .btn.ghost:hover { transform: translateY(-2px); border-color: var(--amber); }
+
+  /* the compile moment */
+  .compile {
+    margin: 46px 0 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .card {
+    background: var(--bg-raise);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+  }
+  .code {
+    background: var(--code-bg);
+    color: var(--code-ink);
+    border: 1px solid #000;
+    border-radius: 14px;
+    font-family: var(--ff-mono);
+    font-size: 14px; line-height: 1.75;
+    overflow-x: auto;
+    box-shadow: var(--shadow);
+  }
+  .code .bar {
+    display: flex; gap: 7px; padding: 12px 16px;
+    border-bottom: 1px solid #ffffff14;
+  }
+  .code .bar i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  .code .bar .t { margin-left: 8px; color: #8f8579; font-size: 12px; align-self: center; }
+  .code pre { margin: 0; padding: 18px 20px; white-space: pre; }
+  .tok-c { color: #8a8073; font-style: italic; }
+  .tok-k { color: #f2b45c; }
+  .tok-fn { color: #5ac8c8; }
+  .tok-n { color: #e59ac0; }
+  .tok-s { color: #b8cf7e; }
+  .tok-p { color: #ece4d7; }
+
+  .runline {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px;
+    padding: 16px 20px;
+    font-family: var(--ff-mono); font-size: 14px;
+  }
+  .runline .prompt { color: var(--muted); }
+  .runline .out { color: var(--ink); }
+  .chip {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: 8px;
+    background: color-mix(in srgb, var(--amber) 16%, transparent);
+    color: var(--amber);
+    border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
+    padding: 5px 11px; border-radius: 999px;
+    font-weight: 700; font-size: 13px;
+  }
+
+  section { padding: 56px 0; border-top: 1px solid var(--line); }
+  .eyebrow {
+    font-family: var(--ff-mono); font-size: 12px; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--amber); margin: 0 0 10px;
+  }
+  h2 {
+    font-family: var(--ff-display); font-weight: 700;
+    font-size: clamp(27px, 4.6vw, 40px); line-height: 1.08;
+    letter-spacing: -.02em; margin: 0 0 8px; text-wrap: balance;
+  }
+  .lead { color: var(--ink-soft); max-width: 62ch; margin: 0 0 30px; }
+
+  /* benchmarks */
+  .benchgrid { display: flex; flex-direction: column; gap: 22px; }
+  .bench { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .bench .name { font-family: var(--ff-mono); font-size: 13px; color: var(--ink-soft); }
+  .track { display: grid; grid-template-columns: 62px 1fr; align-items: center; gap: 12px; }
+  .track .who { font-family: var(--ff-mono); font-size: 12px; color: var(--muted); text-align: right; }
+  .rail { position: relative; height: 26px; background: color-mix(in srgb, var(--line) 60%, transparent); border-radius: 6px; overflow: hidden; }
+  .fill { position: absolute; inset: 0 auto 0 0; border-radius: 6px; display: flex; align-items: center; padding: 0 10px;
+          font-family: var(--ff-mono); font-size: 12px; font-weight: 500; white-space: nowrap; }
+  .fill.py { background: color-mix(in srgb, var(--teal) 26%, var(--bg-raise)); color: var(--ink); }
+  .fill.na { background: var(--amber); color: #1a1408; font-weight: 700; min-width: 58px; }
+  .win { font-family: var(--ff-mono); font-size: 12px; color: var(--amber); font-weight: 700; }
+  .bench-note { color: var(--muted); font-size: 13.5px; margin-top: 26px; font-family: var(--ff-mono); }
+
+  /* features */
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .feat { padding: 22px; border-radius: 14px; background: var(--bg-raise); border: 1px solid var(--line); }
+  .feat h3 { font-family: var(--ff-display); font-weight: 700; font-size: 18px; margin: 0 0 6px; letter-spacing: -.01em; }
+  .feat .k { font-family: var(--ff-mono); font-size: 12px; color: var(--amber); letter-spacing: .06em; }
+  .feat p { margin: 8px 0 0; font-size: 14.5px; color: var(--ink-soft); line-height: 1.55; }
+
+  /* honest panel */
+  .honest { background: var(--bg-raise); border: 1px solid var(--line); border-radius: 16px; padding: 30px 30px; }
+  .honest h2 { font-size: clamp(22px, 3.4vw, 28px); }
+  .honest p { color: var(--ink-soft); max-width: 66ch; }
+  .honest p b { color: var(--ink); font-weight: 600; }
+
+  /* install */
+  .install-code { margin-top: 4px; }
+  .install-code pre { color: var(--code-ink); }
+  .cmd-k { color: var(--amber); }
+  .cmd-c { color: #8a8073; }
+
+  footer { padding: 40px 0 70px; border-top: 1px solid var(--line); color: var(--muted); }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 26px; align-items: center; justify-content: space-between; }
+  footer a { color: var(--ink-soft); text-decoration: none; font-family: var(--ff-mono); font-size: 13px; }
+  footer a:hover { color: var(--amber); }
+  .foot-mark { font-family: var(--ff-display); font-weight: 800; font-size: 20px; letter-spacing: -.02em; }
+  .foot-mark .dotsy { color: var(--amber); }
+
+  .reveal { opacity: 0; transform: translateY(14px); animation: rise .7s cubic-bezier(.2,.7,.2,1) forwards; }
+  .reveal.d1 { animation-delay: .06s; } .reveal.d2 { animation-delay: .14s; }
+  .reveal.d3 { animation-delay: .22s; } .reveal.d4 { animation-delay: .3s; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .reveal { animation: none; opacity: 1; transform: none; } }
+
+  @media (max-width: 720px) {
+    .grid { grid-template-columns: 1fr; }
+    section { padding: 46px 0; }
+  }
+</style>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="brandline reveal">
+      <span>a programming language</span><span class="dotsy">·sy</span>
+    </div>
+    <h1 class="word reveal d1">sandy<span class="cursor">_</span></h1>
+    <p class="thesis reveal d1">As easy as Python. Compiles to a native binary that runs <b>15–180× faster</b>.</p>
+    <p class="sub reveal d2">Write the readable, dynamic code you'd write in Python — add types where they earn their keep — then compile the hot paths to a single small binary that runs at C speed. Sand is what chips are made of; Sandy compiles down to the metal.</p>
+    <div class="cta-row reveal d2">
+      <a class="btn primary" href="https://github.com/santhosharulsamy/Sandy">Get Sandy on GitHub →</a>
+      <a class="btn ghost" href="#speed">See the benchmarks</a>
+    </div>
+
+    <div class="compile reveal d3">
+      <div class="code" aria-label="A Sandy program, fib.sy">
+        <div class="bar"><i style="background:#e8624a"></i><i style="background:#e8a13c"></i><i style="background:#5ac8c8"></i><span class="t">fib.sy</span></div>
+<pre><span class="tok-c"># types are optional — add them where they earn their keep</span>
+<span class="tok-k">fn</span> <span class="tok-fn">fib</span>(n: <span class="tok-n">int</span>) -&gt; <span class="tok-n">int</span> {
+    <span class="tok-k">if</span> n &lt; 2 { <span class="tok-k">return</span> n }
+    <span class="tok-k">return</span> <span class="tok-fn">fib</span>(n - 1) + <span class="tok-fn">fib</span>(n - 2)
+}
+
+<span class="tok-fn">print</span>(<span class="tok-fn">fib</span>(30))</pre>
+      </div>
+      <div class="card runline">
+        <span class="prompt">$ sandy build fib.sy &amp;&amp; ./fib</span>
+        <span class="out">832040</span>
+        <span class="chip">⚡ 3.2 ms — 43× faster than CPython</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section id="speed">
+  <div class="wrap">
+    <p class="eyebrow">Measured, not claimed</p>
+    <h2>The typed core compiles to real machine code.</h2>
+    <p class="lead">Each program is written twice — once in Sandy, once in equivalent Python — and run as a compiled binary versus CPython 3.11. The pairs are correctness-checked, so the comparison is fair.</p>
+
+    <div class="benchgrid">
+      <div class="bench">
+        <div class="name">fib(30) — recursion</div>
+        <div class="track"><span class="who">python</span><div class="rail"><div class="fill py" style="width:100%">138 ms</div></div></div>
+        <div class="track"><span class="who">sandy</span><div class="rail"><div class="fill na" style="width:8%">3.2 ms</div></div></div>
+      </div>
+      <div class="bench">
+        <div class="name">count primes &lt; 40,000 — branchy loops</div>
+        <div class="track"><span class="who">python</span><div class="rail"><div class="fill py" style="width:100%">61 ms</div></div></div>
+        <div class="track"><span class="who">sandy</span><div class="rail"><div class="fill na" style="width:9%">3.9 ms</div></div></div>
+      </div>
+      <div class="bench">
+        <div class="name">sum i·i to 2,000,000 — tight numeric loop</div>
+        <div class="track"><span class="who">python</span><div class="rail"><div class="fill py" style="width:100%">293 ms</div></div></div>
+        <div class="track"><span class="who">sandy</span><div class="rail"><div class="fill na" style="width:6%">1.6 ms</div></div></div>
+      </div>
+    </div>
+    <p class="bench-note">→ 43×, 16×, and 183× faster. Run <span style="color:var(--ink-soft)">python bench/compare.py</span> to reproduce.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">What's in the box</p>
+    <h2>A whole language, not a toy.</h2>
+    <p class="lead">Two execution engines, a gradual type checker that runs before your program does, a native compiler, concurrency, a package manager, and a real standard library — all built and tested end to end.</p>
+    <div class="grid">
+      <div class="feat"><div class="k">SAFE</div><h3>Gradual types</h3><p>Annotations are optional. Add them and the checker catches mismatches before the program runs — with zero false positives on dynamic code.</p></div>
+      <div class="feat"><div class="k">FAST</div><h3>Native compiler</h3><p><span style="font-family:var(--ff-mono)">sandy build</span> lowers the typed subset to C: structs, closures, try/catch, and an optional garbage collector.</p></div>
+      <div class="feat"><div class="k">EASY</div><h3>Instant runs</h3><p>A tree-walking interpreter and a bytecode VM run your code with no build step, so the edit–run loop stays immediate.</p></div>
+      <div class="feat"><div class="k">CONCURRENT</div><h3>Tasks &amp; channels</h3><p><span style="font-family:var(--ff-mono)">spawn</span> work in the background and talk over channels — share memory by communicating, the Go way.</p></div>
+      <div class="feat"><div class="k">BATTERIES</div><h3>17-module stdlib</h3><p>json, csv, regex, http, math, time, os, random, hashing and more — written in Sandy itself, imported by bare name.</p></div>
+      <div class="feat"><div class="k">SHAREABLE</div><h3>Package manager</h3><p>A manifest, semver dependencies, a lockfile, <span style="font-family:var(--ff-mono)">sandy publish</span>, and an HTTP registry server.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="honest">
+      <p class="eyebrow">The honest part</p>
+      <h2>What Sandy is — and isn't — yet.</h2>
+      <p><b>The interpreter is not the fast part.</b> It's written in Python, so it runs Sandy <i>slower</i> than CPython — it exists for instant feedback while you develop. The speed comes from <b>compiling</b> the typed hot paths, where Sandy pulls 15–180× ahead because the output is real C.</p>
+      <p style="margin-top:14px"><b>The language is done; the ecosystem is young.</b> Sandy won't out-library Python tomorrow — that took Python thirty years and a global community. What Sandy offers today is a coherent lane Python can't stand in: scripting-language ease that compiles to a small, fast, statically-checked binary. The machinery to grow — a package manager and a registry — is already built.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Try it</p>
+    <h2>Three commands.</h2>
+    <p class="lead">Sandy needs only Python to run, and a C compiler (<span style="font-family:var(--ff-mono)">cc</span>/<span style="font-family:var(--ff-mono)">gcc</span>/<span style="font-family:var(--ff-mono)">clang</span>) to build native binaries.</p>
+    <div class="code install-code">
+      <div class="bar"><i style="background:#e8624a"></i><i style="background:#e8a13c"></i><i style="background:#5ac8c8"></i><span class="t">your terminal</span></div>
+<pre><span class="cmd-c"># run instantly on the interpreter</span>
+<span class="cmd-k">python -m sandy run</span> app.sy
+
+<span class="cmd-c"># type-check without running</span>
+<span class="cmd-k">python -m sandy check</span> app.sy
+
+<span class="cmd-c"># compile to a fast native binary</span>
+<span class="cmd-k">python -m sandy build</span> app.sy --run</pre>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span class="foot-mark">sandy<span class="dotsy">.sy</span></span>
+    <span style="font-family:var(--ff-mono); font-size:12.5px;">created by Santhosh Arulsamy · as easy as Python, as fast as C</span>
+    <a href="https://github.com/santhosharulsamy/Sandy">github.com/santhosharulsamy/Sandy →</a>
+  </div>
+</footer>
+
+<script>
+  // Theme follows the viewer; expose a manual toggle via keyboard "t" for demos.
+  try {
+    const saved = localStorage.getItem("sandy-theme");
+    if (saved) document.documentElement.setAttribute("data-theme", saved);
+  } catch (e) {}
+  addEventListener("keydown", (e) => {
+    if (e.key !== "t" || e.metaKey || e.ctrlKey) return;
+    const cur = document.documentElement.getAttribute("data-theme");
+    const next = cur === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("sandy-theme", next); } catch (e) {}
+  });
+</script>

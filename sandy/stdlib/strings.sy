@@ -1,0 +1,54 @@
+# Sandy standard library: string helpers.
+#
+#     import "strings" as str
+#     print(str.reverse("hello"))
+
+fn repeat(s, n) {
+    return s * n
+}
+
+fn reverse(s) {
+    out = ""
+    for ch in s {
+        out = ch + out
+    }
+    return out
+}
+
+fn capitalize(s) {
+    if len(s) == 0 { return s }
+    first = ""
+    rest = ""
+    i = 0
+    for ch in s {
+        if i == 0 { first = ch } else { rest = rest + ch }
+        i += 1
+    }
+    return first.upper() + rest
+}
+
+fn pad_left(s, width, ch) {
+    result = s
+    while len(result) < width {
+        result = ch + result
+    }
+    return result
+}
+
+fn pad_right(s, width, ch) {
+    result = s
+    while len(result) < width {
+        result = result + ch
+    }
+    return result
+}
+
+# Count non-overlapping occurrences of `sub` in `s`.
+fn count(s, sub) {
+    if len(sub) == 0 { return 0 }
+    return len(s.split(sub)) - 1
+}
+
+fn contains(s, sub) {
+    return s.has(sub)
+}

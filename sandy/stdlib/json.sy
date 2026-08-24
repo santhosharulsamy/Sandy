@@ -1,0 +1,242 @@
+# Sandy standard library: JSON encoding and decoding.
+#
+#     import "json" as json
+#     text = json.to_json({"name": "Sandy", "tags": [1, 2, 3]})
+#     value = json.parse(text)
+#     print(value["name"])            # Sandy
+#
+# to_json encodes Sandy values (nil/bool/int/float/string/list/map) to a JSON
+# string; parse reads a JSON string back into Sandy values. Object keys decode
+# to strings. Unicode escapes (\uXXXX) are not supported.
+
+# -- encoding --------------------------------------------------------------
+
+fn to_json(value) {
+    t = type(value)
+    if t == "nil" { return "null" }
+    if t == "bool" {
+        if value { return "true" }
+        return "false"
+    }
+    if t == "int" { return str(value) }
+    if t == "float" { return str(value) }
+    if t == "string" { return _quote(value) }
+    if t == "list" {
+        out = "["
+        i = 0
+        for x in value {
+            if i > 0 { out = out + "," }
+            out = out + to_json(x)
+            i += 1
+        }
+        return out + "]"
+    }
+    if t == "map" {
+        out = "{{"                     # "{{" is an escaped literal '{'
+        i = 0
+        for k in value {
+            if i > 0 { out = out + "," }
+            out = out + _quote(str(k)) + ":" + to_json(value[k])
+            i += 1
+        }
+        return out + "}}"              # "}}" is an escaped literal '}'
+    }
+    throw "cannot encode a " + t + " to JSON"
+}
+
+fn _quote(s) {
+    out = "\""
+    for ch in s {
+        if ch == "\"" { out = out + "\\\"" } elif ch == "\\" {
+            out = out + "\\\\"
+        } elif ch == "\n" {
+            out = out + "\\n"
+        } elif ch == "\t" {
+            out = out + "\\t"
+        } elif ch == "\r" {
+            out = out + "\\r"
+        } else {
+            out = out + ch
+        }
+    }
+    return out + "\""
+}
+
+# -- decoding --------------------------------------------------------------
+
+# A tiny cursor over the input text; pos is mutated in place (structs are
+# reference values, so the position advances across helper calls).
+struct _Cursor { text, pos }
+
+fn parse(text) {
+    p = _Cursor(text, 0)
+    _skip_ws(p)
+    value = _parse_value(p)
+    _skip_ws(p)
+    if p.pos < len(p.text) { throw "trailing characters in JSON" }
+    return value
+}
+
+fn _peek(p) {
+    if p.pos >= len(p.text) { return "" }
+    return p.text[p.pos]
+}
+
+fn _skip_ws(p) {
+    while p.pos < len(p.text) {
+        ch = p.text[p.pos]
+        if ch == " " or ch == "\n" or ch == "\t" or ch == "\r" {
+            p.pos += 1
+        } else {
+            return
+        }
+    }
+}
+
+fn _parse_value(p) {
+    _skip_ws(p)
+    ch = _peek(p)
+    if ch == "" { throw "unexpected end of JSON" }
+    if ch == "{{" { return _parse_object(p) }
+    if ch == "[" { return _parse_array(p) }
+    if ch == "\"" { return _parse_string(p) }
+    if ch == "t" {
+        _expect_lit(p, "true")
+        return true
+    }
+    if ch == "f" {
+        _expect_lit(p, "false")
+        return false
+    }
+    if ch == "n" {
+        _expect_lit(p, "null")
+        return nil
+    }
+    return _parse_number(p)
+}
+
+fn _expect_lit(p, word) {
+    for ch in word {
+        if p.pos >= len(p.text) or p.text[p.pos] != ch {
+            throw "invalid JSON literal, expected " + word
+        }
+        p.pos += 1
+    }
+}
+
+fn _parse_string(p) {
+    p.pos += 1                       # opening quote
+    out = ""
+    while true {
+        if p.pos >= len(p.text) { throw "unterminated string in JSON" }
+        ch = p.text[p.pos]
+        if ch == "\"" {
+            p.pos += 1
+            return out
+        }
+        if ch == "\\" {
+            p.pos += 1
+            if p.pos >= len(p.text) { throw "bad escape in JSON" }
+            esc = p.text[p.pos]
+            if esc == "n" { out = out + "\n" } elif esc == "t" {
+                out = out + "\t"
+            } elif esc == "r" {
+                out = out + "\r"
+            } elif esc == "\"" {
+                out = out + "\""
+            } elif esc == "\\" {
+                out = out + "\\"
+            } elif esc == "/" {
+                out = out + "/"
+            } elif esc == "u" {
+                throw "unicode escapes (\\uXXXX) are not supported"
+            } else {
+                out = out + esc
+            }
+            p.pos += 1
+        } else {
+            out = out + ch
+            p.pos += 1
+        }
+    }
+}
+
+fn _is_num_char(ch) {
+    if ch == "-" or ch == "+" or ch == "." or ch == "e" or ch == "E" {
+        return true
+    }
+    return "0" <= ch and ch <= "9"
+}
+
+fn _parse_number(p) {
+    start = p.pos
+    is_float = false
+    while p.pos < len(p.text) and _is_num_char(p.text[p.pos]) {
+        ch = p.text[p.pos]
+        if ch == "." or ch == "e" or ch == "E" { is_float = true }
+        p.pos += 1
+    }
+    numstr = ""
+    i = start
+    while i < p.pos {
+        numstr = numstr + p.text[i]
+        i += 1
+    }
+    if numstr == "" { throw "invalid number in JSON" }
+    if is_float { return float(numstr) }
+    return int(numstr)
+}
+
+fn _parse_array(p) {
+    p.pos += 1                       # [
+    out = []
+    _skip_ws(p)
+    if _peek(p) == "]" {
+        p.pos += 1
+        return out
+    }
+    while true {
+        _skip_ws(p)
+        push(out, _parse_value(p))
+        _skip_ws(p)
+        ch = _peek(p)
+        if ch == "," {
+            p.pos += 1
+        } elif ch == "]" {
+            p.pos += 1
+            return out
+        } else {
+            throw "expected ',' or ']' in JSON array"
+        }
+    }
+}
+
+fn _parse_object(p) {
+    p.pos += 1                       # opening brace
+    out = {}
+    _skip_ws(p)
+    if _peek(p) == "}}" {
+        p.pos += 1
+        return out
+    }
+    while true {
+        _skip_ws(p)
+        if _peek(p) != "\"" { throw "expected string key in JSON object" }
+        key = _parse_string(p)
+        _skip_ws(p)
+        if _peek(p) != ":" { throw "expected ':' in JSON object" }
+        p.pos += 1
+        _skip_ws(p)
+        out[key] = _parse_value(p)
+        _skip_ws(p)
+        ch = _peek(p)
+        if ch == "," {
+            p.pos += 1
+        } elif ch == "}}" {
+            p.pos += 1
+            return out
+        } else {
+            throw "expected ',' or closing brace in JSON object"
+        }
+    }
+}

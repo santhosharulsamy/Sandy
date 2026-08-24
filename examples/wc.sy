@@ -1,0 +1,26 @@
+# A tiny "word count" command-line tool, showing off Sandy as a scripting
+# language: command-line arguments, the filesystem, and path helpers.
+#
+#     sandy run examples/wc.sy examples/hello.sy
+
+import "os" as os
+
+files = args()
+if len(files) == 0 {
+    print("usage: wc.sy <file> [file ...]")
+    exit(1)
+}
+
+for path in files {
+    if not exists(path) {
+        print(os.basename(path) + ": no such file")
+    } else {
+        text = read_file(path)
+        lines = read_lines(path)
+        words = split(text)
+        print(os.basename(path) + ": " +
+              str(len(lines)) + " lines, " +
+              str(len(words)) + " words, " +
+              str(len(text)) + " chars")
+    }
+}

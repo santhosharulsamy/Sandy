@@ -1,0 +1,2429 @@
+<!doctype html><html><head><meta charset='utf-8'><title>The Sandy Programming Language</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Public+Sans:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap"><style>
+@page { size: A4; margin: 22mm 20mm; }
+@page { @bottom-center { content: counter(page); } }
+:root { --ink:#1b1712; --soft:#4c453b; --muted:#8a8073; --amber:#a45e12;
+        --line:#e5ded2; --code-bg:#f6f2ea; }
+* { box-sizing: border-box; }
+body { font-family: "Public Sans", Georgia, "Times New Roman", serif;
+       color: var(--ink); line-height: 1.62; font-size: 11.2pt; margin: 0; }
+h1, h2, h3, h4 { font-family: "Bricolage Grotesque", Georgia, serif;
+       line-height: 1.15; color: var(--ink); }
+h1 { font-size: 26pt; letter-spacing: -.02em; }
+h2 { font-size: 18pt; margin: 0 0 .4em; letter-spacing: -.01em; }
+h3 { font-size: 13.5pt; margin: 1.4em 0 .3em; }
+p, li { color: var(--soft); }
+a { color: var(--amber); text-decoration: none; }
+code, pre { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; }
+code { background: var(--code-bg); padding: .08em .32em; border-radius: 3px;
+       font-size: .88em; color: #603b0e; }
+pre { background: var(--code-bg); border: 1px solid var(--line);
+      border-radius: 7px; padding: 12px 14px; overflow-x: auto; font-size: 9.4pt;
+      line-height: 1.5; }
+pre code { background: none; padding: 0; color: var(--ink); font-size: inherit; }
+table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 10pt; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left;
+         vertical-align: top; }
+th { background: var(--code-bg); font-family: "Bricolage Grotesque", serif; }
+blockquote { border-left: 3px solid var(--amber); margin: 1em 0; padding: .2em 1em;
+             color: var(--soft); background: #faf7f1; }
+hr { border: none; border-top: 1px solid var(--line); margin: 2em 0; }
+
+.chapter { page-break-before: always; }
+.titlepage { page-break-after: always; text-align: center; padding-top: 32%; }
+.titlepage .name { font-family: "Bricolage Grotesque", serif; font-weight: 800;
+       font-size: 40pt; letter-spacing: -.03em; margin: 0; }
+.titlepage .name .dot { color: var(--amber); }
+.titlepage .tag { font-size: 13pt; color: var(--soft); margin-top: 1.2em; }
+.titlepage .foot { margin-top: 3.5em; font-family: "JetBrains Mono", monospace;
+       font-size: 9.5pt; color: var(--muted); }
+.toc { page-break-after: always; }
+.toc h2 { border-bottom: 2px solid var(--amber); padding-bottom: .2em; }
+.toc ol { line-height: 2; }
+</style></head><body><div class='titlepage'><p class='name'>sandy<span class='dot'>.</span></p><p class='tag'>The Sandy Programming Language</p><p class='tag' style='font-size:11pt'>As easy as Python. Compiles to a native binary. Checked before you ship.</p><p class='tag' style='font-size:12pt; margin-top:2.4em'>Santhosh Arulsamy</p><p class='foot'>A complete guide to the language,<br>its standard library, and its tools.</p></div><div class='toc'><h2>Contents</h2><ol><li>Chapter 1 — Introduction</li><li>Chapter 2 — Getting Started</li><li>Chapter 3 — Lexical Structure</li><li>Chapter 4 — Values and Types</li><li>Chapter 5 — Variables and Assignment</li><li>Chapter 6 — Operators and Expressions</li><li>Chapter 7 — Strings</li><li>Chapter 8 — Control Flow</li><li>Chapter 9 — Functions</li><li>Chapter 10 — Collections</li><li>Chapter 11 — Structs</li><li>Chapter 12 — Error Handling</li><li>Chapter 13 — Modules and Packages</li><li>Chapter 14 — The Type System</li><li>Chapter 15 — Concurrency</li><li>Chapter 16 — Compilation and Performance</li><li>Chapter 17 — The Standard Library</li><li>Chapter 18 — Built-in Functions</li><li>Chapter 19 — Tooling and the CLI</li><li>Chapter 20 — Appendix: Grammar</li></ol></div><div class='chapter'><h1>Chapter 1 — Introduction</h1>
+<h2>What Sandy is</h2>
+<p>Sandy is a general-purpose programming language. Programs are stored in files
+ending in <code>.sy</code>. It looks and feels like a modern scripting language — clean
+syntax, dynamic by default, batteries included — but it is built around one
+idea that scripting languages usually give up on: <strong>the typed parts of your
+program can be compiled to a small, fast, standalone native executable.</strong></p>
+<p>That single idea shapes everything:</p>
+<ul>
+<li>You can start writing with no ceremony — no type declarations, no build step,
+  no boilerplate <code>main</code>.</li>
+<li>You can add type annotations gradually, and a checker verifies them <em>before</em>
+  the program runs, turning a class of bugs into compile-time errors.</li>
+<li>When a piece of code needs to be fast, you compile it. Typed Sandy lowers to
+  C and runs at C speed — many times faster than an interpreter.</li>
+</ul>
+<h2>Why it exists</h2>
+<p>Every popular language is a set of tradeoffs. Python is wonderfully easy but
+slow and dynamically checked. C and Rust are fast and safe but demand ceremony.
+Most projects pick one language and live with its weak side.</p>
+<p>Sandy aims at a specific, defensible lane between them:</p>
+<blockquote>
+<p><em>As easy to write as Python, but it compiles to a fast native binary, tells
+you exactly what's wrong before you ship, and needs zero setup to run.</em></p>
+</blockquote>
+<p>It does not try to be the best at everything — no language is. It tries to be
+the best <strong>easy language that produces a fast native binary with types checked
+up front.</strong> Python cannot produce that binary; C and Rust are not this easy.</p>
+<h2>The four goals</h2>
+<p>Sandy is designed around four goals, pursued in a deliberate order because at
+their extremes they pull against each other:</p>
+<table>
+<thead>
+<tr>
+<th>Goal</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Easy</strong></td>
+<td>Python-level readability, minimal ceremony</td>
+</tr>
+<tr>
+<td><strong>Fast</strong></td>
+<td>Native-code speed for the typed core</td>
+</tr>
+<tr>
+<td><strong>Safe</strong></td>
+<td>Catch mistakes before the program runs</td>
+</tr>
+<tr>
+<td><strong>Lovable</strong></td>
+<td>Great errors, good tools, zero configuration</td>
+</tr>
+</tbody>
+</table>
+<p>The key design decision — <strong>gradual types</strong> — serves three of these at once:
+types keep the language <em>easy</em> (they're optional), make it <em>safe</em> (they're
+checked early), and make it <em>fast</em> (the compiler uses them to generate
+unboxed native code).</p>
+<h2>A first taste</h2>
+<p>Here is a complete Sandy program:</p>
+<pre><code class="language-sandy">fn greet(name: string) -&gt; string {
+    return &quot;hello, &quot; + name
+}
+
+for who in [&quot;world&quot;, &quot;Sandy&quot;] {
+    print(greet(who))
+}
+</code></pre>
+<pre><code>hello, world
+hello, Sandy
+</code></pre>
+<p>Notice what is <em>not</em> there: no imports for basic output, no <code>main</code> function, no
+semicolons, no manual memory management. The <code>: string</code> and <code>-&gt; string</code>
+annotations are optional — the program runs identically without them — but with
+them, the checker verifies every call to <code>greet</code> before the program starts.</p>
+<h2>How Sandy runs your code</h2>
+<p>Sandy has three ways to execute a program, all from the same source:</p>
+<ol>
+<li><strong>The interpreter</strong> (<code>sandy run</code>) — a tree-walking evaluator. Instant, no
+   build step. This is where you develop.</li>
+<li><strong>The bytecode VM</strong> (<code>sandy --vm run</code>) — compiles to bytecode and runs it on
+   a stack machine; a faster interpreter, kept behavior-identical to the first.</li>
+<li><strong>The native compiler</strong> (<code>sandy build</code>) — translates the typed subset to C
+   and compiles it to a real executable that runs at C speed.</li>
+</ol>
+<p>The interpreter and VM run <em>all</em> of Sandy, including its most dynamic features.
+The native compiler runs the statically typed subset — which is most of the
+language — and is where the speed comes from.</p>
+<h2>An honest word</h2>
+<p>Because the interpreter and VM are themselves written in Python, they run Sandy
+programs <em>slower</em> than CPython runs Python. They exist for instant feedback
+while you develop, not for raw throughput. The speed advantage — 15 to 180
+times faster than CPython on compute-bound code — comes from the <strong>native
+compiler</strong>. Develop against the interpreter; ship the compiled binary.</p>
+<p>The rest of this book shows you the whole language. The next chapter gets you
+running code in a few minutes.</p></div><div class='chapter'><h1>Chapter 2 — Getting Started</h1>
+<h2>Installing</h2>
+<p>Sandy needs Python 3.11 or newer. Clone the repository and run it as a module —
+there is nothing to compile or install:</p>
+<pre><code class="language-bash">git clone https://github.com/santhosharulsamy/Sandy.git
+cd Sandy
+python -m sandy --version
+</code></pre>
+<p>To build native binaries you also need a C compiler on your <code>PATH</code> — <code>cc</code>,
+<code>gcc</code>, or <code>clang</code>. Almost every machine already has one.</p>
+<h2>Your first program</h2>
+<p>Create a file <code>hello.sy</code>:</p>
+<pre><code class="language-sandy">print(&quot;Hello, Sandy!&quot;)
+</code></pre>
+<p>Run it:</p>
+<pre><code class="language-bash">python -m sandy run hello.sy
+</code></pre>
+<pre><code>Hello, Sandy!
+</code></pre>
+<p>There is no <code>main</code> function and no boilerplate. Top-level statements run top to
+bottom.</p>
+<h2>The four commands you'll use most</h2>
+<pre><code class="language-bash">python -m sandy run hello.sy       # run on the interpreter
+python -m sandy check hello.sy     # type-check without running
+python -m sandy build hello.sy     # compile to a native binary ./hello
+python -m sandy                    # start an interactive REPL
+</code></pre>
+<p>In the REPL you can type expressions and see their values immediately — handy
+for experimenting as you read this book.</p>
+<h2>A whirlwind tour</h2>
+<p>The rest of this chapter is the entire language in miniature. Don't worry about
+absorbing it all; each feature gets its own chapter later. Skim it to get the
+shape of the language.</p>
+<h3>Variables and printing</h3>
+<pre><code class="language-sandy">name = &quot;Ada&quot;
+age = 36
+print(&quot;{name} is {age}&quot;)        # {name} is 36
+</code></pre>
+<p>Assign to declare. Strings interpolate with <code>{...}</code>.</p>
+<h3>Numbers</h3>
+<pre><code class="language-sandy">print(7 + 2)        # 9
+print(7 / 2)        # 3.5   — division is always a float
+print(7 % 2)        # 1
+print(2 ** 8)       # 256
+</code></pre>
+<h3>Functions</h3>
+<pre><code class="language-sandy">fn add(a, b) {
+    return a + b
+}
+print(add(2, 3))    # 5
+</code></pre>
+<h3>Optional types</h3>
+<pre><code class="language-sandy">fn area(w: int, h: int) -&gt; int {
+    return w * h
+}
+</code></pre>
+<p>Add annotations and <code>sandy check</code> verifies them before running. Leave them off
+and the code is fully dynamic.</p>
+<h3>Control flow</h3>
+<pre><code class="language-sandy">for i in range(3) {
+    if i % 2 == 0 { print(&quot;{i} even&quot;) } else { print(&quot;{i} odd&quot;) }
+}
+</code></pre>
+<pre><code>0 even
+1 odd
+2 even
+</code></pre>
+<h3>Lists and maps</h3>
+<pre><code class="language-sandy">xs = [1, 2, 3]
+push(xs, 4)
+print(xs)                    # [1, 2, 3, 4]
+
+scores = {&quot;ada&quot;: 10, &quot;bob&quot;: 7}
+print(scores[&quot;ada&quot;])         # 10
+</code></pre>
+<h3>Structs</h3>
+<pre><code class="language-sandy">struct Point { x: int, y: int }
+p = Point(1, 2)
+p.y += 5
+print(p)                     # Point(x=1, y=7)
+</code></pre>
+<h3>Errors</h3>
+<pre><code class="language-sandy">try {
+    x = int(&quot;not a number&quot;)
+} catch e {
+    print(&quot;failed: &quot; + e)    # failed: cannot convert 'not a number' to int
+}
+</code></pre>
+<h3>Modules and the standard library</h3>
+<pre><code class="language-sandy">import &quot;math&quot; as math
+print(math.gcd(12, 18))      # 6
+</code></pre>
+<h3>Concurrency</h3>
+<pre><code class="language-sandy">ch = channel()
+fn worker() { send(ch, 42) }
+spawn(worker)
+print(recv(ch))              # 42
+</code></pre>
+<h3>Compiling to native</h3>
+<pre><code class="language-sandy">fn fib(n: int) -&gt; int {
+    if n &lt; 2 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+print(fib(30))
+</code></pre>
+<pre><code class="language-bash">python -m sandy build fib.sy --run
+</code></pre>
+<pre><code>built native executable: fib
+832040
+</code></pre>
+<p>That is the whole language on one page. The chapters that follow take each piece
+apart carefully, starting with the smallest — how Sandy reads your source text.</p></div><div class='chapter'><h1>Chapter 3 — Lexical Structure</h1>
+<p>Before Sandy understands your program, it breaks the source text into <em>tokens</em>:
+names, keywords, numbers, strings, operators, and punctuation. This chapter
+describes those raw ingredients and the small number of rules about whitespace
+and comments.</p>
+<h2>Source files</h2>
+<p>A Sandy program is a UTF-8 text file, conventionally ending in <code>.sy</code>. A program
+is a sequence of statements. There is no required top-level function; execution
+begins at the first statement.</p>
+<h2>Statements end at newlines</h2>
+<p>Sandy separates statements by <strong>newlines</strong>, not semicolons. There is no <code>;</code>
+statement terminator, and you cannot put two statements on one line with a
+separator:</p>
+<pre><code class="language-sandy">x = 1
+y = 2          # correct: one statement per line
+</code></pre>
+<p>Blank lines and indentation are insignificant except as readability — Sandy is
+brace-delimited, not indentation-delimited. Blocks are written with <code>{ }</code>.</p>
+<h2>Comments</h2>
+<p>A comment starts with <code>#</code> and runs to the end of the line:</p>
+<pre><code class="language-sandy"># this is a comment
+x = 42        # so is this
+</code></pre>
+<p>There are no block comments; use <code>#</code> on each line.</p>
+<h2>Identifiers</h2>
+<p>An identifier names a variable, function, struct, parameter, or module. It
+starts with a letter or underscore and continues with letters, digits, or
+underscores:</p>
+<pre><code>count   _total   isReady   fib2   snake_case_name
+</code></pre>
+<p>By convention, a leading underscore (<code>_helper</code>) marks something internal.</p>
+<h2>Keywords</h2>
+<p>The following words are reserved and cannot be used as identifiers:</p>
+<pre><code>fn   return   if   elif   else   while   for   in   break   continue
+try   catch   throw   struct   import   true   false   nil   and   or   not
+</code></pre>
+<p><code>as</code> is a <em>soft</em> keyword: it has special meaning only in <code>import "x" as name</code>,
+and is otherwise an ordinary identifier.</p>
+<h2>Literals</h2>
+<p><strong>Integers</strong> are written in the usual way. They have arbitrary precision on the
+interpreter and VM (they are Python integers), and 64-bit range when compiled
+natively.</p>
+<pre><code>0    42    1000000
+</code></pre>
+<p><strong>Floats</strong> contain a decimal point:</p>
+<pre><code>3.14    0.5    10.0
+</code></pre>
+<p><strong>Booleans</strong> are <code>true</code> and <code>false</code>. <strong>Nil</strong>, the absence of a value, is <code>nil</code>.</p>
+<p><strong>Strings</strong> are enclosed in double quotes and may contain escape sequences and
+interpolation (Chapter 7):</p>
+<pre><code class="language-sandy">&quot;hello&quot;
+&quot;line one\nline two&quot;
+&quot;total: {count}&quot;
+</code></pre>
+<p><strong>List and map literals</strong> use brackets and braces:</p>
+<pre><code class="language-sandy">[1, 2, 3]
+{&quot;a&quot;: 1, &quot;b&quot;: 2}
+</code></pre>
+<h2>Operators and punctuation</h2>
+<p>The operator and punctuation tokens are:</p>
+<pre><code>+  -  *  /  %  **            arithmetic
+==  !=  &lt;  &gt;  &lt;=  &gt;=         comparison
+=  +=  -=  *=  /=            assignment
+(  )  [  ]  {  }             grouping, indexing, blocks/maps
+,  :  .  -&gt;                  separators and annotations
+</code></pre>
+<p>The words <code>and</code>, <code>or</code>, and <code>not</code> are the logical operators (Chapter 6).</p>
+<h2>A note on braces inside strings</h2>
+<p>Because <code>{</code> begins interpolation inside a string, a <em>literal</em> brace in a string
+is written by doubling it: <code>"{{"</code> produces <code>{</code> and <code>"}}"</code> produces <code>}</code>. This
+only matters inside string literals; everywhere else braces delimit blocks and
+maps as usual. See Chapter 7.</p>
+<p>With the tokens established, the next chapter describes the values those tokens
+denote.</p></div><div class='chapter'><h1>Chapter 4 — Values and Types</h1>
+<p>Every value in Sandy has a type. This chapter surveys the built-in types; later
+chapters cover each in depth. The <code>type(x)</code> builtin returns a value's type name
+as a string, which is a good way to explore in the REPL.</p>
+<h2>The type names</h2>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Example values</th>
+<th><code>type(x)</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>nil</td>
+<td><code>nil</code></td>
+<td><code>"nil"</code></td>
+</tr>
+<tr>
+<td>bool</td>
+<td><code>true</code>, <code>false</code></td>
+<td><code>"bool"</code></td>
+</tr>
+<tr>
+<td>int</td>
+<td><code>0</code>, <code>42</code>, <code>-7</code></td>
+<td><code>"int"</code></td>
+</tr>
+<tr>
+<td>float</td>
+<td><code>3.14</code>, <code>10.0</code></td>
+<td><code>"float"</code></td>
+</tr>
+<tr>
+<td>string</td>
+<td><code>"hi"</code></td>
+<td><code>"string"</code></td>
+</tr>
+<tr>
+<td>list</td>
+<td><code>[1, 2, 3]</code></td>
+<td><code>"list"</code></td>
+</tr>
+<tr>
+<td>map</td>
+<td><code>{"a": 1}</code></td>
+<td><code>"map"</code></td>
+</tr>
+<tr>
+<td>struct instance</td>
+<td><code>Point(1, 2)</code></td>
+<td>the struct's name, e.g. <code>"Point"</code></td>
+</tr>
+<tr>
+<td>function</td>
+<td><code>fn f() {}</code></td>
+<td><code>"function"</code></td>
+</tr>
+</tbody>
+</table>
+<p>Concurrency values add two more: a <code>channel</code> and a <code>task</code> (Chapter 15).</p>
+<h2>Nil</h2>
+<p><code>nil</code> is the absence of a value. Functions that don't return anything yield
+<code>nil</code>, and <code>recv</code> on a closed, drained channel returns <code>nil</code>. <code>nil</code> is <em>falsy</em>
+(Chapter 6).</p>
+<h2>Booleans</h2>
+<p><code>true</code> and <code>false</code>. They are produced by comparisons and consumed by conditions
+and the logical operators.</p>
+<h2>Numbers: int and float</h2>
+<p>Sandy has two numeric types. Integers are whole numbers; floats have a fractional
+part. The important rule to internalize early:</p>
+<blockquote>
+<p><strong>Division <code>/</code> always produces a float.</strong> <code>10 / 2</code> is <code>5.0</code>, not <code>5</code>.</p>
+</blockquote>
+<pre><code class="language-sandy">print(type(10 + 2))    # int
+print(type(10 / 2))    # float
+print(type(10.0))      # float
+</code></pre>
+<p>Mixed arithmetic (<code>int</code> with <code>float</code>) produces a <code>float</code>. Convert explicitly
+with <code>int(x)</code> and <code>float(x)</code>:</p>
+<pre><code class="language-sandy">print(int(3.9))    # 3   (truncates toward zero)
+print(float(3))    # 3.0
+</code></pre>
+<p>Integers on the interpreter and VM have arbitrary precision. When you compile a
+program natively, integers are 64-bit — a deliberate tradeoff for speed.</p>
+<h2>Strings</h2>
+<p>A string is an immutable sequence of characters. String operations produce new
+strings; they never modify the original. Strings support concatenation, indexing,
+iteration, interpolation, and a set of methods — all of Chapter 7.</p>
+<pre><code class="language-sandy">s = &quot;hello&quot;
+print(len(s))        # 5
+print(s[0])          # h
+print(s.upper())     # HELLO
+</code></pre>
+<h2>Lists</h2>
+<p>A list is an ordered, growable, mutable sequence. Elements may be of any type,
+though the native compiler requires them to be homogeneous (all the same type).</p>
+<pre><code class="language-sandy">xs = [10, 20, 30]
+push(xs, 40)
+print(xs[1])         # 20
+print(xs[-1])        # 40   (negative indexes count from the end)
+</code></pre>
+<p>Lists are covered in Chapter 10.</p>
+<h2>Maps</h2>
+<p>A map associates keys with values and preserves insertion order. Keys are
+typically strings or integers.</p>
+<pre><code class="language-sandy">m = {&quot;one&quot;: 1, &quot;two&quot;: 2}
+m[&quot;three&quot;] = 3
+print(m[&quot;two&quot;])      # 2
+print(has(m, &quot;four&quot;)) # false
+</code></pre>
+<p>Maps are covered in Chapter 10.</p>
+<h2>Structs</h2>
+<p>A struct is a user-defined type: a named bundle of fields. Struct instances are
+compared by value and passed by reference.</p>
+<pre><code class="language-sandy">struct Point { x: int, y: int }
+p = Point(3, 4)
+print(p.x)           # 3
+</code></pre>
+<p>Structs are covered in Chapter 11.</p>
+<h2>Functions are values</h2>
+<p>A function is a first-class value. You can store it in a variable, pass it as an
+argument, and return it from another function.</p>
+<pre><code class="language-sandy">fn square(n) { return n * n }
+f = square
+print(f(9))          # 81
+</code></pre>
+<p>Functions are covered in Chapter 9.</p>
+<h2>Dynamic by default, typed by choice</h2>
+<p>Sandy is dynamically typed: a variable can hold any type, and can be reassigned
+to a value of a different type. The optional type annotations you saw in Chapter
+2 do not change how values behave at runtime — they add checks that run <em>before</em>
+the program does. The type system is the subject of Chapter 14.</p>
+<pre><code class="language-sandy">x = 5
+x = &quot;now a string&quot;   # fine — x is dynamic
+print(x)             # now a string
+</code></pre>
+<p>The next chapter covers how names get bound to these values.</p></div><div class='chapter'><h1>Chapter 5 — Variables and Assignment</h1>
+<h2>Declaring by assigning</h2>
+<p>There is no separate declaration keyword. Assigning to a name for the first time
+creates it:</p>
+<pre><code class="language-sandy">count = 0
+message = &quot;ready&quot;
+</code></pre>
+<p>A name can be reassigned freely, including to a value of a different type
+(Sandy is dynamically typed):</p>
+<pre><code class="language-sandy">x = 10
+x = &quot;ten&quot;        # allowed
+</code></pre>
+<h2>Optional type annotations</h2>
+<p>You may annotate a variable with a type at the point of first assignment:</p>
+<pre><code class="language-sandy">count: int = 0
+name: string = &quot;Sandy&quot;
+scores: map&lt;string, int&gt; = {}
+</code></pre>
+<p>The annotation is checked by <code>sandy check</code> and by the compiler: a later
+assignment of an incompatible type is a type error (Chapter 14). Without an
+annotation, the variable is dynamic.</p>
+<h2>Compound assignment</h2>
+<p>The compound assignment operators update a variable in place:</p>
+<pre><code class="language-sandy">total = 0
+total += 5       # total = total + 5
+total -= 2       # subtract
+total *= 3       # multiply
+total /= 2       # divide (result is a float)
+</code></pre>
+<p>Compound assignment requires the variable to already exist.</p>
+<p>Because <code>/=</code> uses division, it produces a float:</p>
+<pre><code class="language-sandy">x = 10
+x /= 2
+print(x)         # 5.0
+</code></pre>
+<h2>Scope</h2>
+<p>Sandy uses <strong>function-level scope</strong>. Names assigned at the top level of a file
+are global to that file. Names assigned inside a function are local to that
+function. A block (<code>{ }</code>) attached to <code>if</code>, <code>while</code>, or <code>for</code> does <em>not</em>
+introduce a new scope — a variable first assigned inside a loop is visible after
+it:</p>
+<pre><code class="language-sandy">for i in range(3) {
+    last = i
+}
+print(last)      # 2  — `last` is visible here
+</code></pre>
+<p>Inside a function, assigning to a name creates or updates a <em>local</em> variable; it
+does not modify a global of the same name. Functions can <em>read</em> enclosing
+variables (see closures, Chapter 9), but a plain assignment inside a function
+binds locally.</p>
+<h2>Indexed and field assignment</h2>
+<p>Assignment also targets a list element, a map entry, or a struct field:</p>
+<pre><code class="language-sandy">xs = [1, 2, 3]
+xs[0] = 99           # list element
+
+m = {&quot;a&quot;: 1}
+m[&quot;b&quot;] = 2           # map entry (creates it)
+
+struct P { x: int }
+p = P(1)
+p.x = 42             # struct field
+</code></pre>
+<p>These do not create a new variable; they mutate the existing container or
+instance.</p>
+<h2>The value of assignment</h2>
+<p>Assignment is a statement, not an expression — it does not produce a value you
+can use inline. This rules out the classic <code>if (x = f())</code> mistake; write the
+assignment on its own line.</p>
+<p>The next chapter covers the operators that combine these values into
+expressions.</p></div><div class='chapter'><h1>Chapter 6 — Operators and Expressions</h1>
+<p>An expression computes a value. This chapter covers every operator, how they
+combine, and the precedence that decides who binds first.</p>
+<h2>Arithmetic</h2>
+<table>
+<thead>
+<tr>
+<th>Operator</th>
+<th>Meaning</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>+</code></td>
+<td>addition</td>
+<td>also concatenates strings and lists</td>
+</tr>
+<tr>
+<td><code>-</code></td>
+<td>subtraction</td>
+<td>also unary negation</td>
+</tr>
+<tr>
+<td><code>*</code></td>
+<td>multiplication</td>
+<td>also repeats strings/lists</td>
+</tr>
+<tr>
+<td><code>/</code></td>
+<td>division</td>
+<td><strong>always produces a float</strong></td>
+</tr>
+<tr>
+<td><code>%</code></td>
+<td>modulo</td>
+<td>Python-style <em>floor</em> modulo</td>
+</tr>
+<tr>
+<td><code>**</code></td>
+<td>exponentiation</td>
+<td>right-associative</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-sandy">print(2 + 3)       # 5
+print(2 ** 3 ** 2) # 512   — ** is right-associative: 2 ** (3 ** 2)
+print(7 / 2)       # 3.5
+print(-7 % 3)      # 2     — result has the sign of the divisor
+print(7 % -3)      # -2
+</code></pre>
+<p>Arithmetic between an <code>int</code> and a <code>float</code> yields a <code>float</code>. Division always
+yields a <code>float</code>, even for evenly divisible integers (<code>9 / 3</code> is <code>3.0</code>).</p>
+<p>There is no integer-division operator; use <code>floor(a / b)</code> when you need one.</p>
+<h2>Comparison</h2>
+<p><code>==</code>, <code>!=</code>, <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> compare two values and produce a bool. Numbers
+compare numerically and strings lexicographically. Structs, lists, and maps
+compare by value with <code>==</code>:</p>
+<pre><code class="language-sandy">print(3 &lt; 5)                 # true
+print(&quot;apple&quot; &lt; &quot;banana&quot;)    # true
+print([1, 2] == [1, 2])      # true
+</code></pre>
+<p>Ordering (<code>&lt;</code>, <code>&gt;</code>, …) is defined for numbers and strings. <code>==</code> and <code>!=</code> work on
+any two values.</p>
+<h2>Logical operators</h2>
+<p><code>and</code>, <code>or</code>, and <code>not</code> are the boolean operators, and <code>and</code>/<code>or</code> <strong>short-circuit</strong>
+— the right operand is not evaluated if the left already decides the result:</p>
+<pre><code class="language-sandy">print(true and false)   # false
+print(false or &quot;yes&quot;)   # yes
+print(not nil)          # true
+</code></pre>
+<p><code>and</code> returns its first falsy operand or the last operand; <code>or</code> returns its
+first truthy operand. Combined with truthiness (below), this gives the familiar
+<code>x or default</code> idiom.</p>
+<h2>Truthiness</h2>
+<p>A value used as a condition is tested for <em>truthiness</em>. These are <strong>falsy</strong>:</p>
+<ul>
+<li><code>nil</code></li>
+<li><code>false</code></li>
+<li><code>0</code> and <code>0.0</code></li>
+<li>the empty string <code>""</code></li>
+<li>the empty list <code>[]</code> and empty map <code>{}</code></li>
+</ul>
+<p>Everything else is truthy.</p>
+<h2>String and list operators</h2>
+<p><code>+</code> concatenates, and <code>*</code> repeats:</p>
+<pre><code class="language-sandy">print(&quot;ab&quot; + &quot;cd&quot;)     # abcd
+print(&quot;ab&quot; * 3)        # ababab
+print([1] + [2, 3])    # [1, 2, 3]
+</code></pre>
+<h2>Indexing and calls</h2>
+<p>Postfix operators access parts of a value:</p>
+<pre><code class="language-sandy">xs[0]          # list/string index (negative counts from the end)
+m[&quot;key&quot;]       # map lookup
+p.field        # struct field or module member
+f(a, b)        # function call
+s.upper()      # method call
+</code></pre>
+<h2>Precedence</h2>
+<p>From highest (binds tightest) to lowest:</p>
+<ol>
+<li>Postfix: calls <code>f(...)</code>, indexing <code>[...]</code>, member <code>.</code></li>
+<li>Unary: <code>-x</code>, <code>not x</code></li>
+<li><code>**</code> (right-associative)</li>
+<li><code>*</code>, <code>/</code>, <code>%</code></li>
+<li><code>+</code>, <code>-</code></li>
+<li>Comparisons: <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code>, <code>==</code>, <code>!=</code></li>
+<li><code>and</code></li>
+<li><code>or</code></li>
+</ol>
+<p>Use parentheses to group when in doubt; they always override precedence:</p>
+<pre><code class="language-sandy">print(2 + 3 * 4)     # 14
+print((2 + 3) * 4)   # 20
+</code></pre>
+<p>The next chapter looks closely at one of the most-used types: strings.</p></div><div class='chapter'><h1>Chapter 7 — Strings</h1>
+<p>Strings are one of the most-used types, so Sandy gives them first-class syntax
+and a useful set of operations. A string is an <strong>immutable</strong> sequence of
+characters: every operation returns a new string.</p>
+<h2>Literals and escapes</h2>
+<p>String literals are enclosed in double quotes:</p>
+<pre><code class="language-sandy">&quot;hello&quot;
+</code></pre>
+<p>Inside a literal, a backslash introduces an escape:</p>
+<table>
+<thead>
+<tr>
+<th>Escape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>\n</code></td>
+<td>newline</td>
+</tr>
+<tr>
+<td><code>\t</code></td>
+<td>tab</td>
+</tr>
+<tr>
+<td><code>\r</code></td>
+<td>carriage return</td>
+</tr>
+<tr>
+<td><code>\"</code></td>
+<td>double quote</td>
+</tr>
+<tr>
+<td><code>\\</code></td>
+<td>backslash</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-sandy">print(&quot;line one\nline two&quot;)
+print(&quot;she said \&quot;hi\&quot;&quot;)
+</code></pre>
+<h2>Interpolation</h2>
+<p>A pair of braces inside a string embeds an expression, converted to a string:</p>
+<pre><code class="language-sandy">name = &quot;Ada&quot;
+count = 3
+print(&quot;hello {name}, you have {count} items&quot;)
+print(&quot;2 + 2 = {2 + 2}&quot;)
+</code></pre>
+<pre><code>hello Ada, you have 3 items
+2 + 2 = 4
+</code></pre>
+<p>Any expression works inside <code>{...}</code>. To include a <strong>literal</strong> brace, double it:</p>
+<pre><code class="language-sandy">print(&quot;a set is written {{ }}&quot;)   # a set is written { }
+</code></pre>
+<p>This doubling rule is the one thing to remember when a string needs real braces
+(for example, when producing JSON by hand — though the <code>json</code> module is the
+better tool).</p>
+<h2>Concatenation and repetition</h2>
+<pre><code class="language-sandy">print(&quot;foo&quot; + &quot;bar&quot;)     # foobar
+print(&quot;=&quot; * 10)          # ==========
+</code></pre>
+<p>Only strings may be concatenated with <code>+</code>. To join a number, convert it first
+with <code>str</code>:</p>
+<pre><code class="language-sandy">n = 42
+print(&quot;answer: &quot; + str(n))   # answer: 42
+</code></pre>
+<h2>Length, indexing, and iteration</h2>
+<pre><code class="language-sandy">s = &quot;hello&quot;
+print(len(s))        # 5
+print(s[0])          # h
+print(s[-1])         # o
+for ch in s {
+    print(ch)        # h e l l o, one per line
+}
+</code></pre>
+<p>Indexing returns a one-character string. Negative indexes count from the end.</p>
+<h2>Comparison</h2>
+<p>Strings compare lexicographically by character code:</p>
+<pre><code class="language-sandy">print(&quot;apple&quot; &lt; &quot;banana&quot;)   # true
+print(&quot;Zoo&quot; &lt; &quot;apple&quot;)      # true  — uppercase sorts before lowercase
+</code></pre>
+<h2>Methods</h2>
+<p>Strings carry a set of methods, called with <code>.</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>s.upper()</code></td>
+<td>uppercase copy</td>
+</tr>
+<tr>
+<td><code>s.lower()</code></td>
+<td>lowercase copy</td>
+</tr>
+<tr>
+<td><code>s.trim()</code></td>
+<td>copy with leading/trailing whitespace removed</td>
+</tr>
+<tr>
+<td><code>s.length()</code></td>
+<td>length (same as <code>len(s)</code>)</td>
+</tr>
+<tr>
+<td><code>s.replace(a, b)</code></td>
+<td>copy with each <code>a</code> replaced by <code>b</code></td>
+</tr>
+<tr>
+<td><code>s.starts_with(p)</code></td>
+<td>whether it begins with <code>p</code></td>
+</tr>
+<tr>
+<td><code>s.ends_with(p)</code></td>
+<td>whether it ends with <code>p</code></td>
+</tr>
+<tr>
+<td><code>s.has(sub)</code></td>
+<td>whether it contains <code>sub</code></td>
+</tr>
+<tr>
+<td><code>s.split(sep)</code></td>
+<td>list of pieces (whitespace if <code>sep</code> omitted)</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-sandy">print(&quot;  Hello  &quot;.trim().upper())   # HELLO
+print(&quot;a,b,c&quot;.split(&quot;,&quot;))           # [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]
+print(&quot;readme.sy&quot;.ends_with(&quot;.sy&quot;)) # true
+</code></pre>
+<p>Many of these also exist as global builtins (<code>upper(s)</code>, <code>split(s, sep)</code>,
+<code>join(list, sep)</code> — Chapter 18), and character-level helpers plus <code>ord</code>/<code>chr</code>
+live in the <code>text</code> module (Chapter 17).</p>
+<h2>Converting to and from strings</h2>
+<p><code>str(x)</code> converts any value to its display string; <code>int(s)</code> and <code>float(s)</code> parse
+numbers:</p>
+<pre><code class="language-sandy">print(str(3.5))      # 3.5
+print(int(&quot;42&quot;) + 1) # 43
+</code></pre>
+<p>The next chapter turns from data to control: how programs make decisions and
+repeat work.</p></div><div class='chapter'><h1>Chapter 8 — Control Flow</h1>
+<p>Control-flow statements decide which code runs and how often. Sandy has three:
+<code>if</code>, <code>while</code>, and <code>for</code>. All use brace-delimited blocks.</p>
+<h2>if / elif / else</h2>
+<pre><code class="language-sandy">n = 7
+if n &lt; 0 {
+    print(&quot;negative&quot;)
+} elif n == 0 {
+    print(&quot;zero&quot;)
+} else {
+    print(&quot;positive&quot;)
+}
+</code></pre>
+<p>The condition is any expression, tested for truthiness (Chapter 6) — it need not
+be a bool. There may be any number of <code>elif</code> branches and an optional final
+<code>else</code>.</p>
+<p><strong>A syntax rule worth stating plainly:</strong> <code>elif</code> and <code>else</code> must appear on the
+<em>same line</em> as the preceding closing brace:</p>
+<pre><code class="language-sandy">if x { ... } else { ... }        # correct
+
+if x { ... }
+else { ... }                     # WRONG — `else` must follow the `}`
+</code></pre>
+<p>This is because a newline ends the <code>if</code> statement. Keep <code>} elif</code> and <code>} else</code>
+together.</p>
+<h2>while</h2>
+<p><code>while</code> repeats its block as long as the condition is truthy:</p>
+<pre><code class="language-sandy">i = 0
+while i &lt; 5 {
+    print(i)
+    i += 1
+}
+</code></pre>
+<pre><code>0
+1
+2
+3
+4
+</code></pre>
+<h2>for</h2>
+<p><code>for</code> iterates over a sequence: a range, a list, or a map.</p>
+<h3>Over a range</h3>
+<p><code>range</code> produces integers. It comes in three forms:</p>
+<pre><code class="language-sandy">for i in range(3) { print(i) }          # 0, 1, 2
+for i in range(1, 4) { print(i) }       # 1, 2, 3
+for i in range(0, 10, 2) { print(i) }   # 0, 2, 4, 6, 8
+</code></pre>
+<p><code>range(n)</code> counts from 0 up to (not including) <code>n</code>. <code>range(a, b)</code> counts from
+<code>a</code> to <code>b</code>. <code>range(a, b, step)</code> uses a stride, which may be negative:</p>
+<pre><code class="language-sandy">for i in range(3, 0, -1) { print(i) }   # 3, 2, 1
+</code></pre>
+<h3>Over a list</h3>
+<pre><code class="language-sandy">for name in [&quot;Ada&quot;, &quot;Bob&quot;, &quot;Cy&quot;] {
+    print(name)
+}
+</code></pre>
+<h3>Over a map</h3>
+<p>Iterating a map yields its <strong>keys</strong>, in insertion order:</p>
+<pre><code class="language-sandy">scores = {&quot;ada&quot;: 10, &quot;bob&quot;: 7}
+for who in scores {
+    print(who + &quot;: &quot; + str(scores[who]))
+}
+</code></pre>
+<pre><code>ada: 10
+bob: 7
+</code></pre>
+<h2>break and continue</h2>
+<p><code>break</code> exits the nearest enclosing loop; <code>continue</code> skips to its next
+iteration:</p>
+<pre><code class="language-sandy">total = 0
+for i in range(100) {
+    if i == 10 { break }
+    if i % 2 == 1 { continue }
+    total += i
+}
+print(total)     # 0 + 2 + 4 + 6 + 8 = 20
+</code></pre>
+<h2>Everything is a statement</h2>
+<p>Control-flow constructs are statements, not expressions — they do not produce a
+value. To choose a value, assign inside the branches, or use <code>or</code> for a default
+(Chapter 6). This keeps control flow explicit and readable.</p>
+<p>The next chapter covers the unit that organizes all this logic: the function.</p></div><div class='chapter'><h1>Chapter 9 — Functions</h1>
+<p>Functions are the primary unit of organization in Sandy. They are also
+first-class values: you can store them, pass them, and return them.</p>
+<h2>Defining and calling</h2>
+<p>A function is introduced with <code>fn</code>, a name, a parenthesized parameter list, and a
+brace-delimited body:</p>
+<pre><code class="language-sandy">fn add(a, b) {
+    return a + b
+}
+
+print(add(2, 3))     # 5
+</code></pre>
+<p><code>return</code> yields a value and ends the function. A function that falls off the end,
+or uses a bare <code>return</code>, yields <code>nil</code>.</p>
+<h2>Parameters and return types</h2>
+<p>Parameters and the return may be annotated (Chapter 14). The annotations are
+optional and are checked before the program runs:</p>
+<pre><code class="language-sandy">fn area(w: int, h: int) -&gt; int {
+    return w * h
+}
+</code></pre>
+<p>Arguments are passed by value for scalars and strings, and by reference for
+lists, maps, and structs — that is, the callee receives the same container the
+caller has, so mutations are visible to both (see Chapter 11 for the details).</p>
+<h2>Recursion</h2>
+<p>A function may call itself. Names are resolved so that a function can refer to
+itself and to functions defined later in the same file:</p>
+<pre><code class="language-sandy">fn fib(n) {
+    if n &lt; 2 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+print(fib(10))       # 55
+</code></pre>
+<h2>First-class functions</h2>
+<p>A function is a value. Assign it, pass it, return it:</p>
+<pre><code class="language-sandy">fn square(n) { return n * n }
+
+apply = square
+print(apply(6))              # 36
+
+fn twice(f, x) { return f(f(x)) }
+fn inc(n) { return n + 1 }
+print(twice(inc, 10))        # 12
+</code></pre>
+<p>This is what makes higher-order library functions like <code>lists.map</code>,
+<code>lists.filter</code>, and <code>lists.reduce</code> possible (Chapter 17).</p>
+<h2>Function types</h2>
+<p>When you want to <em>annotate</em> a function-valued parameter, the type is written
+<code>fn(ParamTypes) -&gt; ReturnType</code>:</p>
+<pre><code class="language-sandy">fn apply(f: fn(int) -&gt; int, x: int) -&gt; int {
+    return f(x)
+}
+fn double(n: int) -&gt; int { return n * 2 }
+
+print(apply(double, 21))     # 42
+</code></pre>
+<p>A bare <code>fn</code> means "any function" and stays fully dynamic. With a precise
+signature, the checker verifies calls made through the value (arity and argument
+types). Typed top-level functions used as values also compile natively (Chapter
+16).</p>
+<h2>Closures</h2>
+<p>A function defined inside another function <em>closes over</em> the variables in scope
+where it was defined — it can read and update them even after the outer function
+has returned. This makes stateful helpers and factories easy:</p>
+<pre><code class="language-sandy">fn make_counter() {
+    count = 0
+    fn tick() {
+        count += 1
+        return count
+    }
+    return tick
+}
+
+next = make_counter()
+print(next())    # 1
+print(next())    # 2
+print(next())    # 3
+</code></pre>
+<p>Each call to <code>make_counter</code> creates a fresh <code>count</code>, so two counters are
+independent.</p>
+<p>Closures run on the interpreter and VM. The native compiler supports first-class
+<em>top-level</em> functions but not capturing closures (Chapter 16); the checker and
+interpreter support them everywhere.</p>
+<h2>Order of definitions</h2>
+<p>Top-level functions may be <em>called</em> before their definition appears in the file
+(calls are resolved after the whole file is read). But using a function as a
+<em>value</em> — assigning it, passing it — requires its definition to have run first,
+because that is when the function value comes into existence. In practice, define
+before you pass.</p>
+<p>The next chapter covers the two workhorse container types: lists and maps.</p></div><div class='chapter'><h1>Chapter 10 — Collections</h1>
+<p>Sandy has two built-in containers: the <strong>list</strong>, an ordered sequence, and the
+<strong>map</strong>, a key-value table. Both are mutable and grow on demand.</p>
+<h2>Lists</h2>
+<h3>Creating and reading</h3>
+<pre><code class="language-sandy">xs = [10, 20, 30]
+print(xs[0])         # 10
+print(xs[-1])        # 30   (negative indexes count from the end)
+print(len(xs))       # 3
+</code></pre>
+<p>Indexing out of range is a runtime error (catchable with <code>try</code>, Chapter 12).</p>
+<h3>Growing and mutating</h3>
+<pre><code class="language-sandy">xs = [1, 2, 3]
+push(xs, 4)          # append; xs is now [1, 2, 3, 4]
+xs[0] = 99           # replace an element
+last = pop(xs)       # remove and return the last element
+print(last)          # 4
+</code></pre>
+<h3>Iterating</h3>
+<pre><code class="language-sandy">for x in [1, 2, 3] {
+    print(x * x)     # 1, 4, 9
+}
+</code></pre>
+<h3>Building a list</h3>
+<p>A common pattern is to start empty and <code>push</code>:</p>
+<pre><code class="language-sandy">squares = []
+for i in range(1, 6) {
+    push(squares, i * i)
+}
+print(squares)       # [1, 4, 9, 16, 25]
+</code></pre>
+<h3>Concatenation and repetition</h3>
+<pre><code class="language-sandy">print([1, 2] + [3, 4])   # [1, 2, 3, 4]
+print([0] * 3)           # [0, 0, 0]
+</code></pre>
+<h3>Equality</h3>
+<p>Lists compare element-by-element:</p>
+<pre><code class="language-sandy">print([1, 2, 3] == [1, 2, 3])   # true
+</code></pre>
+<h3>Typed lists</h3>
+<p>Annotate a list with an element type to have it checked, and to make it eligible
+for native compilation:</p>
+<pre><code class="language-sandy">nums: list&lt;int&gt; = [1, 2, 3]
+</code></pre>
+<p>The <code>lists</code> standard-library module adds higher-order helpers — <code>map</code>, <code>filter</code>,
+<code>reduce</code>, <code>reverse</code>, <code>unique</code>, and more (Chapter 17). The <code>sort</code> module sorts.</p>
+<h2>Maps</h2>
+<h3>Creating and reading</h3>
+<pre><code class="language-sandy">ages = {&quot;ada&quot;: 36, &quot;bob&quot;: 41}
+print(ages[&quot;ada&quot;])       # 36
+print(has(ages, &quot;cy&quot;))   # false
+</code></pre>
+<p>Looking up a missing key is a runtime error; guard with <code>has</code>, or use
+<code>maps.get(m, key, default)</code> from the standard library.</p>
+<h3>Adding and updating</h3>
+<pre><code class="language-sandy">ages = {&quot;ada&quot;: 36}
+ages[&quot;bob&quot;] = 41         # add a new entry
+ages[&quot;ada&quot;] = 37         # update an existing one
+print(len(ages))         # 2
+</code></pre>
+<h3>Keys, values, and iteration</h3>
+<p>Maps preserve <strong>insertion order</strong>. Iterating a map yields its keys:</p>
+<pre><code class="language-sandy">m = {&quot;a&quot;: 1, &quot;b&quot;: 2, &quot;c&quot;: 3}
+for k in m {
+    print(k + &quot; = &quot; + str(m[k]))
+}
+print(keys(m))       # [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]
+print(values(m))     # [1, 2, 3]
+</code></pre>
+<h3>Equality</h3>
+<p>Maps compare by their key-value pairs, regardless of order:</p>
+<pre><code class="language-sandy">print({&quot;a&quot;: 1, &quot;b&quot;: 2} == {&quot;b&quot;: 2, &quot;a&quot;: 1})   # true
+</code></pre>
+<h3>Typed maps</h3>
+<p>Annotate with key and value types:</p>
+<pre><code class="language-sandy">scores: map&lt;string, int&gt; = {}
+</code></pre>
+<p>For native compilation, keys are <code>int</code> or <code>string</code> and values are scalars or
+strings.</p>
+<h3>Map helpers</h3>
+<p>The <code>maps</code> module (Chapter 17) adds <code>get</code>, <code>items</code>, <code>from_pairs</code>, <code>merge</code>,
+<code>invert</code>, <code>map_values</code>, and <code>pick</code>.</p>
+<h2>Choosing between them</h2>
+<p>Use a <strong>list</strong> for an ordered collection you iterate or index by position; use a
+<strong>map</strong> when you look values up by a key. Both are covered further — with
+worked examples — in the standard-library chapter.</p>
+<p>The next chapter introduces the way to define your own structured types.</p></div><div class='chapter'><h1>Chapter 11 — Structs</h1>
+<p>A struct is a user-defined type: a named group of fields. Structs give a program
+its vocabulary — <code>Point</code>, <code>Account</code>, <code>Request</code> — instead of loose maps and
+tuples.</p>
+<h2>Defining a struct</h2>
+<pre><code class="language-sandy">struct Point { x: int, y: int }
+</code></pre>
+<p>Fields may be typed (as above) or untyped:</p>
+<pre><code class="language-sandy">struct Tag { name, weight }     # untyped fields — dynamic
+</code></pre>
+<p>Typed fields are checked and are required for native compilation. Field types may
+be scalars, strings, other structs, or (natively) typed lists and maps.</p>
+<h2>Creating an instance</h2>
+<p>Construct with the struct's name, passing one argument per field in order:</p>
+<pre><code class="language-sandy">p = Point(3, 4)
+print(p.x)       # 3
+print(p.y)       # 4
+</code></pre>
+<p>Printing a struct shows its name and fields:</p>
+<pre><code class="language-sandy">print(p)         # Point(x=3, y=4)
+</code></pre>
+<h2>Reading and mutating fields</h2>
+<p>Fields are read and assigned with <code>.</code>:</p>
+<pre><code class="language-sandy">p.x = 10
+p.y += 5
+print(p)         # Point(x=10, y=9)
+</code></pre>
+<h2>Value equality</h2>
+<p>Two struct instances are equal when they have the same type and equal fields,
+compared deeply:</p>
+<pre><code class="language-sandy">print(Point(1, 2) == Point(1, 2))   # true
+print(Point(1, 2) == Point(1, 9))   # false
+</code></pre>
+<h2>Reference semantics</h2>
+<p>Struct instances are <strong>reference values</strong>. Assigning one to another name, or
+passing one to a function, shares the <em>same</em> instance — mutations are visible
+everywhere it is referenced:</p>
+<pre><code class="language-sandy">struct Box { n: int }
+
+a = Box(1)
+b = a            # b refers to the same Box as a
+b.n = 42
+print(a.n)       # 42  — a and b are the same instance
+
+fn bump(box) { box.n += 100 }
+bump(a)
+print(a.n)       # 142 — the function mutated the shared instance
+</code></pre>
+<p>This is the same model Python uses for objects: names are references, and
+mutation is shared. If you need an independent copy, construct a new instance.</p>
+<p>By contrast, scalars (<code>int</code>, <code>float</code>, <code>bool</code>) and strings are passed by value —
+a function cannot change a caller's number.</p>
+<h2>Nesting</h2>
+<p>A struct field may be another struct, and structs nest to any depth:</p>
+<pre><code class="language-sandy">struct Point { x: int, y: int }
+struct Line { a: Point, b: Point }
+
+seg = Line(Point(0, 0), Point(3, 4))
+print(seg.b.x)       # 3
+print(seg)           # Line(a=Point(x=0, y=0), b=Point(x=3, y=4))
+</code></pre>
+<h2>Structs as types</h2>
+<p>A struct name is a valid type annotation. The checker then verifies construction
+(arity and field types), field access (an unknown field is an error), and
+assignment — all before the program runs:</p>
+<pre><code class="language-sandy">fn distance_sq(p: Point) -&gt; int {
+    return p.x * p.x + p.y * p.y
+}
+</code></pre>
+<p>Structs — including those with list and map fields — compile natively (Chapter
+16), where they become heap-allocated C structs that preserve exactly this
+reference semantics.</p>
+<p>The next chapter covers what happens when things go wrong: error handling.</p></div><div class='chapter'><h1>Chapter 12 — Error Handling</h1>
+<p>When something goes wrong at runtime — a division by zero, a missing map key, or
+a condition your own code decides is invalid — Sandy raises an <em>error</em>. An error
+unwinds the call stack until a <code>try</code> block catches it, or, if none does, stops
+the program with a message.</p>
+<h2>try / catch</h2>
+<p>Wrap code that might fail in <code>try</code>, and handle failure in <code>catch</code>:</p>
+<pre><code class="language-sandy">try {
+    x = int(&quot;not a number&quot;)
+    print(x)
+} catch e {
+    print(&quot;failed: &quot; + e)
+}
+</code></pre>
+<pre><code>failed: cannot convert 'not a number' to int
+</code></pre>
+<p>The name after <code>catch</code> is bound to the error <strong>message</strong>, which is always a
+string. That is the whole value of an error in Sandy — a human-readable message
+— which keeps error handling simple.</p>
+<h2>throw</h2>
+<p>Raise your own error with <code>throw</code>. The thrown value is converted to a string and
+becomes the caught message:</p>
+<pre><code class="language-sandy">fn withdraw(balance, amount) {
+    if amount &gt; balance {
+        throw &quot;insufficient funds&quot;
+    }
+    return balance - amount
+}
+
+try {
+    print(withdraw(100, 250))
+} catch e {
+    print(&quot;declined: &quot; + e)      # declined: insufficient funds
+}
+</code></pre>
+<p>You can throw any value; it is stringified. In practice, throw a descriptive
+string.</p>
+<h2>Built-in errors are catchable</h2>
+<p>Errors raised by the language and its builtins are ordinary catchable errors —
+there is no separate category. Division by zero, an out-of-range index, a
+missing map key, and a failed conversion can all be caught:</p>
+<pre><code class="language-sandy">fn safe_get(xs, i) {
+    try {
+        return xs[i]
+    } catch e {
+        return nil
+    }
+}
+print(safe_get([1, 2, 3], 10))   # nil
+</code></pre>
+<p>The messages match what the language reports — for example
+<code>"index 10 out of range (length 3)"</code> and <code>"division by zero"</code>.</p>
+<h2>Propagation</h2>
+<p>An error propagates outward through function calls until it meets a <code>try</code>. This
+lets you handle failures far from where they occur:</p>
+<pre><code class="language-sandy">fn parse_row(line) {
+    return int(line)      # may throw
+}
+
+fn total(lines) {
+    sum = 0
+    for line in lines {
+        sum += parse_row(line)
+    }
+    return sum
+}
+
+try {
+    print(total([&quot;1&quot;, &quot;2&quot;, &quot;oops&quot;, &quot;4&quot;]))
+} catch e {
+    print(&quot;bad data: &quot; + e)      # bad data: cannot convert 'oops' to int
+}
+</code></pre>
+<p><code>parse_row</code> doesn't handle the error; <code>total</code> doesn't either; the top-level
+<code>try</code> does.</p>
+<h2>What is <em>not</em> caught</h2>
+<p><code>try</code>/<code>catch</code> catches runtime errors. It does not catch control flow — a
+<code>return</code>, <code>break</code>, or <code>continue</code> inside a <code>try</code> body does the ordinary thing
+(returns, breaks, continues); it is not intercepted by the <code>catch</code>.</p>
+<h2>In compiled programs</h2>
+<p><code>try</code>/<code>catch</code>/<code>throw</code> compiles natively (Chapter 16). The compiled program uses
+the same semantics — the caught value is the message string, and built-in errors
+are catchable — so error-handling code behaves identically whether interpreted
+or compiled.</p>
+<p>The next chapter covers organizing code across files and sharing it as packages.</p></div><div class='chapter'><h1>Chapter 13 — Modules and Packages</h1>
+<p>A program larger than one file is organized into <strong>modules</strong>, and code shared
+between projects is distributed as <strong>packages</strong>. Both use the same <code>import</code>.</p>
+<h2>Importing a file</h2>
+<p><code>import</code> runs another <code>.sy</code> file once and binds its top-level definitions —
+functions, structs, and variables — as a namespaced module value:</p>
+<pre><code class="language-sandy"># geometry.sy
+fn area(w, h) { return w * h }
+fn perimeter(w, h) { return 2 * (w + h) }
+</code></pre>
+<pre><code class="language-sandy"># main.sy
+import &quot;geometry&quot; as geo
+
+print(geo.area(3, 4))        # 12
+print(geo.perimeter(3, 4))   # 14
+</code></pre>
+<p>Access a module's members with <code>module.member</code>. The <code>.sy</code> extension is optional
+in the path (<code>"geometry"</code> finds <code>geometry.sy</code>).</p>
+<h2>Resolution and semantics</h2>
+<ul>
+<li>Paths resolve <strong>relative to the importing file</strong>, then against installed
+  package dependencies, then against the bundled standard library.</li>
+<li>A module is <strong>cached by absolute path</strong> — imported once, even through diamond
+  import graphs where several files import the same module.</li>
+<li><strong>Circular imports</strong> are detected and reported rather than looping.</li>
+<li>A module runs on the <strong>same engine</strong> as its importer, so a callback you pass
+  into a module function behaves identically on the interpreter and the VM.</li>
+</ul>
+<p>A local file always shadows a package, which shadows the standard library. This
+lets you override any module by dropping a file of the same name next to your
+program.</p>
+<h2>The standard library</h2>
+<p>The standard library is a set of modules, written in Sandy itself, imported by
+bare name from anywhere:</p>
+<pre><code class="language-sandy">import &quot;math&quot; as math
+import &quot;json&quot; as json
+
+print(math.gcd(48, 36))                # 12
+print(json.to_json({&quot;ok&quot;: true}))      # {&quot;ok&quot;:true}
+</code></pre>
+<p>Chapter 17 documents every module.</p>
+<h2>Packages</h2>
+<p>A <strong>project</strong> is a directory with a manifest, <code>sandy.toml</code>:</p>
+<pre><code class="language-toml">[package]
+name = &quot;myapp&quot;
+version = &quot;0.1.0&quot;
+
+[dependencies]
+geometry = &quot;^1.2.0&quot;                     # a registry version constraint
+utils    = { path = &quot;../utils&quot; }        # a local path dependency
+webby    = { git = &quot;https://example.com/webby.git&quot; }  # a git dependency
+</code></pre>
+<h3>The commands</h3>
+<pre><code class="language-bash">sandy add geometry ^1.2.0    # add a dependency (version, path, or git URL)
+sandy install                # resolve dependencies, vendor them, write sandy.lock
+sandy publish                # publish this project to the registry
+</code></pre>
+<p><code>sandy install</code> resolves every dependency, copies it into <code>sandy_modules/</code>, and
+records exactly what was chosen in <code>sandy.lock</code> so builds are reproducible.
+Dependencies are then imported by bare name, just like the standard library.</p>
+<h3>Version constraints</h3>
+<p>Registry dependencies use semantic-version constraints:</p>
+<table>
+<thead>
+<tr>
+<th>Constraint</th>
+<th>Matches</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1.2.3</code></td>
+<td>exactly that version</td>
+</tr>
+<tr>
+<td><code>^1.2.0</code></td>
+<td>compatible: <code>&gt;= 1.2.0</code> and <code>&lt; 2.0.0</code></td>
+</tr>
+<tr>
+<td><code>~1.2.0</code></td>
+<td><code>&gt;= 1.2.0</code> and <code>&lt; 1.3.0</code></td>
+</tr>
+<tr>
+<td><code>&gt;=1.0.0,&lt;2.0.0</code></td>
+<td>a range (comma-separated <code>and</code>)</td>
+</tr>
+<tr>
+<td><code>*</code></td>
+<td>any version</td>
+</tr>
+</tbody>
+</table>
+<p><code>sandy install</code> picks the highest published version that satisfies the
+constraint.</p>
+<h3>The registry</h3>
+<p>The registry can be a local directory or an HTTP server, selected with the
+<code>SANDY_REGISTRY</code> environment variable (default <code>~/.sandy/registry</code>). Sandy
+includes a reference registry server:</p>
+<pre><code class="language-bash">sandy registry serve --port 8377 --dir ./registry
+export SANDY_REGISTRY=http://localhost:8377
+</code></pre>
+<p>Published versions are immutable. Because dependencies are ordinary Sandy code,
+<strong>typed dependencies are type-checked across the package boundary</strong> — calling a
+dependency's function with the wrong argument type is caught before your program
+runs, even though it lives in another package.</p>
+<p>The next chapter goes deep on the type system that makes that possible.</p></div><div class='chapter'><h1>Chapter 14 — The Type System</h1>
+<p>Sandy's type system is <strong>gradual</strong>: annotations are optional, and code without
+them is fully dynamic and runs unchanged. Where you add annotations, a checker
+verifies them <em>before</em> the program runs. This chapter explains what the checker
+does, what it deliberately does not do, and how to run it.</p>
+<h2>The core promise</h2>
+<blockquote>
+<p>Unannotated code produces <strong>zero</strong> type errors and behaves exactly as if the
+checker did not exist. Annotations only ever <em>add</em> checks; they never change
+runtime behavior.</p>
+</blockquote>
+<p>This is what "gradual" means. You can write an entire program with no types, add
+a few where a bug would be costly, and never be forced to annotate the rest.</p>
+<h2><code>any</code></h2>
+<p>Every unannotated value has the type <code>any</code>. <code>any</code> is compatible with every type,
+in both directions — you can pass an <code>any</code> where an <code>int</code> is expected, and an
+<code>int</code> where <code>any</code> is expected. This is the mechanism that keeps dynamic code
+error-free:</p>
+<pre><code class="language-sandy">fn double(x: int) -&gt; int { return x * 2 }
+fn get(m, k) { return m[k] }        # untyped -&gt; returns any
+
+print(double(get(m, &quot;n&quot;)))          # any flows into int: no error
+</code></pre>
+<h2>Where annotations go</h2>
+<pre><code class="language-sandy">fn add(a: int, b: int) -&gt; int { return a + b }   # parameters and return
+score: int = 0                                     # variables
+struct Point { x: int, y: int }                    # struct fields
+apply: fn(int) -&gt; int = double                     # function-typed variables
+</code></pre>
+<h2>What is checked</h2>
+<p>The checker reports an error only when two <strong>known, non-<code>any</code></strong> types definitely
+conflict. Specifically it verifies:</p>
+<ul>
+<li><strong>Assignment</strong> to an annotated variable, and later reassignment, match the
+  declared type.</li>
+<li><strong>Return</strong> values match a function's declared return type.</li>
+<li><strong>Call arity and argument types</strong> against annotated parameters — including
+  calls made through a value of function type <code>fn(...) -&gt; R</code>.</li>
+<li><strong>Operators</strong> — e.g. <code>int + string</code> is rejected when both sides are known.</li>
+<li><strong>List and map element types</strong> via <code>list&lt;T&gt;</code> and <code>map&lt;K, V&gt;</code>; indexing a
+  <code>list&lt;string&gt;</code> yields a <code>string</code>, so <code>xs[0] + 1</code> is caught.</li>
+<li><strong>Structs</strong> — construction (arity and field types), field access (an unknown
+  field is an error), and field assignment.</li>
+<li><strong>Imported modules</strong> — calls to a module's functions and its struct
+  construction are checked across the file (and package) boundary.</li>
+<li><strong>Unknown type names</strong> in annotations are reported.</li>
+</ul>
+<pre><code class="language-sandy">fn area(w: int, h: int) -&gt; int { return w * h }
+print(area(&quot;wide&quot;, 3))
+</code></pre>
+<pre><code>TypeError (line 2): argument 1 of area() expects int, got string
+</code></pre>
+<h2>Parameterized types</h2>
+<p>Lists and maps take type parameters:</p>
+<pre><code class="language-sandy">nums: list&lt;int&gt; = [1, 2, 3]
+table: map&lt;string, int&gt; = {&quot;a&quot;: 1}
+</code></pre>
+<p>An unparameterized <code>list</code> or <code>map</code> is treated as fully gradual (element type
+<code>any</code>). Element and value types are checked when known, and <code>any</code> on either side
+always passes.</p>
+<h2>Function types</h2>
+<p><code>fn(T1, T2) -&gt; R</code> is the type of a function taking <code>T1, T2</code> and returning <code>R</code>;
+omit <code>-&gt; R</code> for a function that returns nothing. A bare <code>fn</code> means "any
+function" and stays gradual. Calls made through a typed function value are
+checked for arity and argument types.</p>
+<h2>Int widens to float</h2>
+<p>An <code>int</code> is accepted where a <code>float</code> is expected (it widens automatically); the
+reverse is not allowed without an explicit <code>int(x)</code>:</p>
+<pre><code class="language-sandy">x: float = 3        # fine — int widens to float
+</code></pre>
+<h2>Running the checker</h2>
+<p>The checker runs automatically before <code>sandy run</code> and <code>sandy build</code>. To check
+without running:</p>
+<pre><code class="language-bash">sandy check program.sy
+</code></pre>
+<pre><code>program.sy: no type errors ✓
+</code></pre>
+<p>Use <code>--no-check</code> to skip the pre-run check (for quick throwaway runs). The
+compiler always type-checks, because it needs the types to generate code.</p>
+<h2>Types and speed</h2>
+<p>The annotations are not only for safety — they drive the native compiler. When
+the typed subset of a program is compiled (Chapter 16), the known types let the
+compiler emit unboxed C: an <code>int</code> becomes a machine integer, a <code>list&lt;int&gt;</code>
+becomes a contiguous array, with no runtime type dispatch. The same annotations
+that catch your bugs make your code fast.</p>
+<p>The next chapter covers doing several things at once.</p></div><div class='chapter'><h1>Chapter 15 — Concurrency</h1>
+<p>Sandy's concurrency model is small and Go-flavored: run work as <strong>tasks</strong>, and
+have tasks communicate over <strong>channels</strong>. The guiding principle is <em>share memory
+by communicating</em> — pass data through channels rather than reaching into shared
+variables.</p>
+<h2>Spawning a task</h2>
+<p><code>spawn(fn, args...)</code> runs a function as a background task and returns a handle.
+<code>wait(task)</code> blocks until the task finishes and returns its result:</p>
+<pre><code class="language-sandy">fn work(n) {
+    return n * n
+}
+
+t = spawn(work, 12)
+print(wait(t))       # 144
+</code></pre>
+<p>If the task raises an error, <code>wait</code> re-raises it, so you can wrap <code>wait</code> in a
+<code>try</code>:</p>
+<pre><code class="language-sandy">fn boom() { throw &quot;kaboom&quot; }
+b = spawn(boom)
+try { wait(b) } catch e { print(&quot;task failed: &quot; + e) }   # task failed: kaboom
+</code></pre>
+<h2>Channels</h2>
+<p>A channel carries values between tasks. Create one with <code>channel()</code>, then <code>send</code>
+and <code>recv</code>:</p>
+<pre><code class="language-sandy">ch = channel()
+
+fn producer() {
+    send(ch, 42)
+}
+spawn(producer)
+
+print(recv(ch))      # 42
+</code></pre>
+<p><code>send</code> and <code>recv</code> <strong>block to synchronize</strong>:</p>
+<ul>
+<li><code>channel()</code> — an <strong>unbuffered</strong> channel: a <code>send</code> waits until a <code>recv</code> takes
+  the value (a rendezvous), so the two tasks hand off directly.</li>
+<li><code>channel(n)</code> — a <strong>buffered</strong> channel holding up to <code>n</code> values before a sender
+  blocks.</li>
+</ul>
+<p>Because the operations block, values come out in a well-defined order even though
+the work runs concurrently — which is what makes concurrent programs testable and
+predictable.</p>
+<h2>Closing a channel</h2>
+<p><code>close(ch)</code> marks a channel finished. A <code>recv</code> on a drained, closed channel
+returns <code>nil</code>, which gives a clean way to stream results and stop:</p>
+<pre><code class="language-sandy">stream = channel()
+
+fn emit() {
+    for k in range(1, 4) {
+        send(stream, k)
+    }
+    close(stream)
+}
+spawn(emit)
+
+v = recv(stream)
+while v != nil {
+    print(v)         # 1, 2, 3
+    v = recv(stream)
+}
+</code></pre>
+<h2>A worker pool</h2>
+<p>Putting it together — fan several tasks out and collect their results through one
+channel:</p>
+<pre><code class="language-sandy">jobs = [1, 2, 3, 4, 5]
+results = channel(len(jobs))
+
+fn work(n) {
+    send(results, n * n)
+}
+for n in jobs {
+    spawn(work, n)
+}
+
+total = 0
+i = 0
+while i &lt; len(jobs) {
+    total += recv(results)
+    i += 1
+}
+print(total)         # 55
+</code></pre>
+<h2>Safety</h2>
+<p>Channels are internally synchronized, so passing values through them is always
+safe. Sharing a plain variable between tasks <em>without</em> a channel is a data race —
+exactly as in Go. The rule of thumb: <strong>communicate through channels</strong>, and reach
+for shared state only when you know what you're doing.</p>
+<h2>Where it runs</h2>
+<p>Tasks are real threads. <code>spawn</code> runs on the default engine (the interpreter);
+<code>channel</code>, <code>send</code>, <code>recv</code>, and <code>close</code> work everywhere. Because concurrency is
+inherently dynamic, it is not part of the native-compilation subset — concurrent
+programs run on the interpreter.</p>
+<p>The next chapter turns to the other end of the spectrum: compiling for speed.</p></div><div class='chapter'><h1>Chapter 16 — Compilation and Performance</h1>
+<p>Sandy runs the same source three ways. This chapter explains each, what compiles
+natively, and the performance you can expect.</p>
+<h2>Three engines, one language</h2>
+<table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>Command</th>
+<th>What it's for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tree-walking interpreter</td>
+<td><code>sandy run</code></td>
+<td>development — instant, no build</td>
+</tr>
+<tr>
+<td>Bytecode VM</td>
+<td><code>sandy --vm run</code></td>
+<td>a faster interpreter; behavior-identical</td>
+</tr>
+<tr>
+<td>Native compiler</td>
+<td><code>sandy build</code></td>
+<td>production speed for the typed subset</td>
+</tr>
+</tbody>
+</table>
+<p>The interpreter and VM run <strong>all</strong> of Sandy, including closures, dynamic values,
+and concurrency. The VM compiles to bytecode and runs a stack machine; it is
+kept output-identical to the interpreter by an equivalence test suite.</p>
+<h2>An honest baseline</h2>
+<p>The interpreter and VM are themselves written in Python. A Python program
+interpreting Sandy is necessarily <em>slower</em> than Python running Python — so on
+raw throughput the interpreter and VM lose to CPython. They exist for the
+edit-run loop, not for speed. All of Sandy's performance advantage comes from the
+native compiler.</p>
+<h2>Native compilation</h2>
+<p><code>sandy build program.sy</code> translates the <strong>statically typed subset</strong> of Sandy to
+C and compiles it with the system C compiler (<code>cc</code>/<code>gcc</code>/<code>clang</code>) at <code>-O2</code>,
+producing a standalone executable:</p>
+<pre><code class="language-bash">sandy build fib.sy            # produces ./fib
+sandy build fib.sy --run      # build and run
+sandy build fib.sy -o app     # choose the output name
+sandy build fib.sy --emit-c   # also keep the generated C
+sandy build fib.sy --gc       # link a garbage collector (see below)
+</code></pre>
+<h3>What compiles</h3>
+<p>The native backend handles the typed core, which is most of the language:</p>
+<ul>
+<li>scalars (<code>int</code>, <code>float</code>, <code>bool</code>, <code>string</code>) and all arithmetic, comparison, and
+  logic;</li>
+<li>typed <strong>lists</strong> <code>list&lt;T&gt;</code> and <strong>maps</strong> <code>map&lt;K, V&gt;</code> as unboxed C arrays and hash
+  tables;</li>
+<li><strong>structs</strong> with typed fields (including list and map fields), with value
+  equality and reference semantics preserved;</li>
+<li><strong>functions</strong> with typed parameters and a return type, including recursion and
+  first-class <em>top-level</em> functions;</li>
+<li>all <strong>control flow</strong>, and <strong>try / catch / throw</strong>;</li>
+<li><code>print</code>, string operations, and the numeric builtins.</li>
+</ul>
+<h3>What does not</h3>
+<p>Features that are inherently dynamic run on the interpreter/VM instead, and the
+compiler rejects them with a clear message: dynamic <code>any</code> values, capturing
+closures (top-level functions are fine), the OS/network builtins, and
+concurrency. When <code>sandy build</code> refuses, it tells you exactly why and points you
+to <code>sandy run</code>.</p>
+<h3>Types are the enabler</h3>
+<p>The compiler needs to know a value's type to emit unboxed code — an <code>int</code> as a
+machine integer, a <code>list&lt;int&gt;</code> as a contiguous array — with no runtime type
+tags. That is why the same annotations that make your code <em>safe</em> (Chapter 14)
+also make it <em>fast</em>. Untyped code cannot be compiled natively, because there is
+nothing for the compiler to specialize.</p>
+<h3>Memory</h3>
+<p>By default, native programs never free heap memory — which is fine for the
+short-lived tools the backend targets, and is the fastest option. For a
+long-running program, <code>sandy build --gc</code> links a conservative mark-sweep garbage
+collector, so memory stays bounded. Output and behavior are identical either
+way.</p>
+<h2>The numbers</h2>
+<p>On compute-bound benchmarks (CPython 3.11, <code>cc -O2</code>), native Sandy runs
+<strong>15–180× faster than CPython</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Benchmark</th>
+<th style="text-align: right;">Python</th>
+<th style="text-align: right;">Sandy native</th>
+<th style="text-align: right;">Speedup</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fib(30)</code> recursive</td>
+<td style="text-align: right;">138 ms</td>
+<td style="text-align: right;">3.2 ms</td>
+<td style="text-align: right;">43×</td>
+</tr>
+<tr>
+<td>count primes <code>&lt; 40k</code></td>
+<td style="text-align: right;">61 ms</td>
+<td style="text-align: right;">3.9 ms</td>
+<td style="text-align: right;">16×</td>
+</tr>
+<tr>
+<td><code>sum i*i</code> to 2,000,000</td>
+<td style="text-align: right;">293 ms</td>
+<td style="text-align: right;">1.6 ms</td>
+<td style="text-align: right;">183×</td>
+</tr>
+</tbody>
+</table>
+<p>The exact numbers vary by machine; the ratios are the point. The tight numeric
+loop shows the largest gap, where a compiler pulls furthest ahead of an
+interpreter. Reproduce it with <code>python bench/compare.py</code>, and see <code>BENCHMARKS.md</code>
+for the methodology (the Sandy and Python versions are checked to compute the
+same result, so the comparison is fair).</p>
+<h2>The recommended workflow</h2>
+<ol>
+<li>Write and iterate with <code>sandy run</code> — instant feedback, full language.</li>
+<li>Add types where they matter, and let <code>sandy check</code> guard them.</li>
+<li>When you need speed, <code>sandy build</code> the typed program into a binary that runs
+   at C speed.</li>
+</ol>
+<p>You never leave the language or rewrite in C or Rust to get there. That is the
+lane Sandy is built for.</p>
+<p>The remaining chapters are references: the standard library, the builtins, the
+tooling, and the grammar.</p></div><div class='chapter'><h1>Chapter 17 — The Standard Library</h1>
+<p>Sandy ships with a standard library of modules, <strong>written in Sandy itself</strong> and
+imported by bare name. A local file of the same name shadows a standard module,
+so you can override any of them. This chapter documents each module.</p>
+<pre><code class="language-sandy">import &quot;math&quot; as math
+import &quot;json&quot; as json
+# ... etc.
+</code></pre>
+<hr />
+<h2><code>math</code> — numbers and statistics</h2>
+<p>Constants <code>pi</code>, <code>e</code>, <code>tau</code>, and:</p>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sign(x)</code></td>
+<td><code>-1</code>, <code>0</code>, or <code>1</code></td>
+</tr>
+<tr>
+<td><code>clamp(x, lo, hi)</code></td>
+<td><code>x</code> limited to the range</td>
+</tr>
+<tr>
+<td><code>gcd(a, b)</code> / <code>lcm(a, b)</code></td>
+<td>greatest common divisor / least common multiple</td>
+</tr>
+<tr>
+<td><code>factorial(n)</code></td>
+<td><code>n!</code></td>
+</tr>
+<tr>
+<td><code>is_prime(n)</code></td>
+<td>primality test</td>
+</tr>
+<tr>
+<td><code>mean(xs)</code> / <code>median(xs)</code></td>
+<td>average / middle value</td>
+</tr>
+<tr>
+<td><code>variance(xs)</code> / <code>stddev(xs)</code></td>
+<td>spread</td>
+</tr>
+<tr>
+<td><code>hypot(a, b)</code></td>
+<td><code>sqrt(a*a + b*b)</code></td>
+</tr>
+<tr>
+<td><code>deg2rad(d)</code> / <code>rad2deg(r)</code></td>
+<td>angle conversions</td>
+</tr>
+<tr>
+<td><code>log_base(x, base)</code></td>
+<td>logarithm in an arbitrary base</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-sandy">print(math.gcd(48, 36))          # 12
+print(math.median([3, 1, 2]))    # 2
+</code></pre>
+<p>(Trigonometric and exponential functions — <code>sin</code>, <code>cos</code>, <code>tan</code>, <code>exp</code>, <code>log</code>,
+<code>log10</code>, <code>sqrt</code>, <code>pow</code> — are global builtins; see Chapter 18.)</p>
+<h2><code>strings</code> — string helpers</h2>
+<p><code>reverse</code>, <code>capitalize</code>, <code>repeat(s, n)</code>, <code>pad_left(s, width, ch)</code>,
+<code>pad_right(s, width, ch)</code>, <code>count(s, sub)</code>, <code>contains(s, sub)</code>.</p>
+<pre><code class="language-sandy">import &quot;strings&quot; as strings
+print(strings.reverse(&quot;abc&quot;))    # cba
+print(strings.pad_left(&quot;7&quot;, 3, &quot;0&quot;))   # 007
+</code></pre>
+<h2><code>text</code> — characters and tokenizing</h2>
+<p>Character predicates take a one-character string: <code>is_digit</code>, <code>is_alpha</code>,
+<code>is_alnum</code>, <code>is_space</code>, <code>is_upper</code>, <code>is_lower</code>. Plus <code>chars(s)</code> (list of
+characters), <code>lines(s)</code>, <code>words(s)</code> (split on whitespace runs), <code>title(s)</code>
+(capitalize each word), and <code>count(s, sub)</code>.</p>
+<pre><code class="language-sandy">import &quot;text&quot; as text
+print(text.words(&quot;  a   b c &quot;))  # [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]
+print(text.title(&quot;hello there&quot;)) # Hello There
+</code></pre>
+<h2><code>lists</code> — higher-order list operations</h2>
+<p><code>map(f, xs)</code>, <code>filter(pred, xs)</code>, <code>reduce(f, acc, xs)</code>, <code>reverse(xs)</code>,
+<code>unique(xs)</code>, <code>contains(xs, x)</code>, <code>index_of(xs, x)</code>, <code>take(xs, n)</code>,
+<code>drop(xs, n)</code>, <code>first(xs)</code>, <code>last(xs)</code>.</p>
+<pre><code class="language-sandy">import &quot;lists&quot; as lists
+fn even(n) { return n % 2 == 0 }
+print(lists.filter(even, [1, 2, 3, 4]))   # [2, 4]
+</code></pre>
+<h2><code>sort</code> — sorting</h2>
+<p><code>sort(xs)</code>, <code>sort_by(xs, key)</code>, <code>sort_desc(xs)</code>, <code>is_sorted(xs)</code>. A stable,
+non-destructive insertion sort over numbers or strings.</p>
+<pre><code class="language-sandy">import &quot;sort&quot; as sort
+print(sort.sort([3, 1, 2]))               # [1, 2, 3]
+fn length(s) { return len(s) }
+print(sort.sort_by([&quot;ccc&quot;, &quot;a&quot;, &quot;bb&quot;], length))   # [&quot;a&quot;, &quot;bb&quot;, &quot;ccc&quot;]
+</code></pre>
+<h2><code>sets</code> — set operations over lists</h2>
+<p><code>union</code>, <code>intersection</code>, <code>difference</code>, <code>symmetric_difference</code>, <code>is_subset</code>,
+<code>is_disjoint</code>, <code>contains</code>, <code>unique</code>. Sets are lists of unique values.</p>
+<pre><code class="language-sandy">import &quot;sets&quot; as sets
+print(sets.union([1, 2], [2, 3]))         # [1, 2, 3]
+print(sets.intersection([1, 2, 3], [2, 4])) # [2]
+</code></pre>
+<h2><code>maps</code> — map helpers</h2>
+<p><code>get(m, k, default)</code>, <code>items(m)</code> (list of <code>[key, value]</code> pairs), <code>from_pairs</code>,
+<code>merge(a, b)</code>, <code>invert(m)</code>, <code>map_values(m, f)</code>, <code>pick(m, keys)</code>.</p>
+<pre><code class="language-sandy">import &quot;maps&quot; as maps
+print(maps.get({&quot;a&quot;: 1}, &quot;z&quot;, 0))         # 0
+print(maps.merge({&quot;a&quot;: 1}, {&quot;b&quot;: 2}))     # {&quot;a&quot;: 1, &quot;b&quot;: 2}
+</code></pre>
+<h2><code>json</code> — JSON encoding and decoding</h2>
+<p><code>to_json(value)</code> encodes a Sandy value to a JSON string; <code>parse(text)</code> decodes
+JSON back into Sandy values.</p>
+<pre><code class="language-sandy">import &quot;json&quot; as json
+text = json.to_json({&quot;name&quot;: &quot;Sandy&quot;, &quot;xs&quot;: [1, 2, 3]})
+print(text)                      # {&quot;name&quot;:&quot;Sandy&quot;,&quot;xs&quot;:[1,2,3]}
+data = json.parse(text)
+print(data[&quot;name&quot;])              # Sandy
+</code></pre>
+<h2><code>csv</code> — comma-separated values</h2>
+<p><code>parse(text)</code> returns a list of rows (each a list of string fields);
+<code>format(rows)</code> produces CSV text. RFC 4180-style quoting handles commas,
+newlines, and quotes inside fields. Also <code>parse_line</code> and <code>format_row</code>.</p>
+<pre><code class="language-sandy">import &quot;csv&quot; as csv
+rows = csv.parse(&quot;name,age\nAda,36&quot;)
+print(rows[1][0])                # Ada
+</code></pre>
+<h2><code>regex</code> — regular expressions</h2>
+<p><code>test(pattern, s)</code>, <code>find(pattern, s)</code>, <code>find_all(pattern, s)</code>,
+<code>groups(pattern, s)</code>, <code>replace(pattern, s, repl)</code>, <code>split(pattern, s)</code>. Uses the
+host regex syntax (<code>\d</code>, <code>\w</code>, anchors, groups, quantifiers). <code>find</code>/<code>groups</code>
+return <code>nil</code> when there is no match; <code>replace</code> supports <code>\1</code> backreferences.</p>
+<pre><code class="language-sandy">import &quot;regex&quot; as regex
+print(regex.find_all(&quot;\\w+&quot;, &quot;a, bb, ccc&quot;))   # [&quot;a&quot;, &quot;bb&quot;, &quot;ccc&quot;]
+print(regex.replace(&quot;\\s+&quot;, &quot;a   b&quot;, &quot;_&quot;))    # a_b
+</code></pre>
+<h2><code>random</code> — pseudo-random numbers</h2>
+<p>A seedable, deterministic generator: <code>seed(n)</code>, <code>next()</code> (float in <code>[0, 1)</code>),
+<code>randint(lo, hi)</code> (inclusive), <code>boolean()</code>, <code>choice(xs)</code>, <code>shuffle(xs)</code> (a new
+list), <code>sample(xs, k)</code> (k distinct elements).</p>
+<pre><code class="language-sandy">import &quot;random&quot; as random
+random.seed(42)
+print(random.randint(1, 6))      # a repeatable &quot;die roll&quot; for that seed
+</code></pre>
+<h2><code>time</code> — clocks and durations</h2>
+<p><code>epoch()</code> (wall-clock seconds), <code>monotonic()</code> (for measuring elapsed time),
+<code>since(start)</code>, <code>sleep_ms(ms)</code>, and <code>format(seconds)</code> for a human-readable
+duration.</p>
+<pre><code class="language-sandy">import &quot;time&quot; as time
+print(time.format(3723))         # 1h 02m 03s
+</code></pre>
+<h2><code>os</code> — paths (with filesystem builtins)</h2>
+<p>Path helpers <code>join(a, b)</code>, <code>basename(path)</code>, <code>dirname(path)</code>, <code>extension(path)</code>,
+<code>stem(path)</code>. These pair with the filesystem builtins <code>cwd</code>, <code>exists</code>, <code>is_file</code>,
+<code>is_dir</code>, <code>list_dir</code>, <code>make_dir</code>, <code>remove_file</code>, and <code>args</code> (Chapter 18).</p>
+<pre><code class="language-sandy">import &quot;os&quot; as os
+print(os.basename(&quot;a/b/c.sy&quot;))   # c.sy
+print(os.extension(&quot;photo.png&quot;)) # png
+</code></pre>
+<h2><code>http</code> — web requests</h2>
+<p><code>get_json(url)</code> and <code>post_json(url, value)</code> fetch and decode JSON;
+<code>status(response)</code>, <code>body(response)</code>, <code>ok(response)</code> read a raw response from the
+<code>http_get</code>/<code>http_post</code> builtins. A non-2xx status or a transport failure throws.</p>
+<pre><code class="language-sandy">import &quot;http&quot; as http
+data = http.get_json(&quot;https://api.example.com/thing&quot;)
+print(data[&quot;name&quot;])
+</code></pre>
+<h2><code>base64</code> — Base64 encoding</h2>
+<p><code>encode(s)</code> and <code>decode(s)</code> over the UTF-8 bytes of a string.</p>
+<pre><code class="language-sandy">import &quot;base64&quot; as base64
+print(base64.encode(&quot;hello&quot;))    # aGVsbG8=
+</code></pre>
+<h2><code>hash</code> — a non-cryptographic hash</h2>
+<p><code>djb2(s)</code> — a fast, stable integer hash for buckets and checksums. For
+cryptographic digests use the global <code>sha256(s)</code> and <code>md5(s)</code> builtins.</p>
+<h2><code>assert</code> — assertions for tests</h2>
+<p><code>eq(actual, expected, msg)</code>, <code>neq</code>, <code>is_true(cond, msg)</code>, <code>is_false</code>. Each
+throws a descriptive message on failure, so you can write tests in Sandy itself.</p>
+<pre><code class="language-sandy">import &quot;assert&quot; as assert
+assert.eq(2 + 2, 4, &quot;arithmetic&quot;)
+</code></pre>
+<p>The next chapter documents the global built-in functions these modules build on.</p></div><div class='chapter'><h1>Chapter 18 — Built-in Functions</h1>
+<p>These functions are always available — no import needed. They are grouped here by
+purpose. Many string and collection builtins also work as methods
+(<code>s.upper()</code>, <code>xs.push(x)</code>); the reference notes where.</p>
+<h2>Core</h2>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>print(...)</code></td>
+<td>print the arguments separated by spaces, then a newline</td>
+</tr>
+<tr>
+<td><code>input(prompt?)</code></td>
+<td>read a line of text from standard input</td>
+</tr>
+<tr>
+<td><code>len(x)</code></td>
+<td>length of a string, list, or map</td>
+</tr>
+<tr>
+<td><code>type(x)</code></td>
+<td>the value's type name, as a string</td>
+</tr>
+<tr>
+<td><code>range(n)</code> / <code>range(a, b)</code> / <code>range(a, b, step)</code></td>
+<td>a sequence of integers to loop over</td>
+</tr>
+</tbody>
+</table>
+<h2>Conversions</h2>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>str(x)</code></td>
+<td>the display string of any value</td>
+</tr>
+<tr>
+<td><code>int(x)</code></td>
+<td>convert a number or numeric string to an integer (truncates floats)</td>
+</tr>
+<tr>
+<td><code>float(x)</code></td>
+<td>convert a number or numeric string to a float</td>
+</tr>
+<tr>
+<td><code>bool(x)</code></td>
+<td>the truthiness of a value</td>
+</tr>
+<tr>
+<td><code>ord(ch)</code></td>
+<td>the Unicode code point of a one-character string</td>
+</tr>
+<tr>
+<td><code>chr(n)</code></td>
+<td>the one-character string for a code point</td>
+</tr>
+</tbody>
+</table>
+<h2>Math</h2>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abs(x)</code></td>
+<td>absolute value</td>
+</tr>
+<tr>
+<td><code>min(list)</code> / <code>max(list)</code></td>
+<td>smallest / largest element</td>
+</tr>
+<tr>
+<td><code>sum(list)</code></td>
+<td>sum of a list of numbers</td>
+</tr>
+<tr>
+<td><code>round(x, ndigits?)</code></td>
+<td>round to <code>ndigits</code> decimal places (default 0)</td>
+</tr>
+<tr>
+<td><code>sqrt(x)</code></td>
+<td>square root</td>
+</tr>
+<tr>
+<td><code>floor(x)</code> / <code>ceil(x)</code></td>
+<td>round down / up to an integer</td>
+</tr>
+<tr>
+<td><code>pow(a, b)</code></td>
+<td><code>a</code> to the power <code>b</code></td>
+</tr>
+<tr>
+<td><code>sin</code>, <code>cos</code>, <code>tan</code></td>
+<td>trigonometric functions (radians)</td>
+</tr>
+<tr>
+<td><code>exp(x)</code></td>
+<td>e to the power <code>x</code></td>
+</tr>
+<tr>
+<td><code>log(x, base?)</code></td>
+<td>natural logarithm, or logarithm in <code>base</code></td>
+</tr>
+<tr>
+<td><code>log10(x)</code></td>
+<td>base-10 logarithm</td>
+</tr>
+</tbody>
+</table>
+<h2>Lists and maps</h2>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>push(list, x)</code></td>
+<td>append <code>x</code> to a list (also <code>list.push(x)</code>)</td>
+</tr>
+<tr>
+<td><code>pop(list)</code></td>
+<td>remove and return the last element</td>
+</tr>
+<tr>
+<td><code>keys(map)</code></td>
+<td>a list of the map's keys, in insertion order</td>
+</tr>
+<tr>
+<td><code>values(map)</code></td>
+<td>a list of the map's values</td>
+</tr>
+<tr>
+<td><code>has(container, x)</code></td>
+<td>whether a map has a key (or a list/string contains <code>x</code>)</td>
+</tr>
+</tbody>
+</table>
+<h2>Strings</h2>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>upper(s)</code> / <code>lower(s)</code></td>
+<td>change case (also methods)</td>
+</tr>
+<tr>
+<td><code>trim(s)</code></td>
+<td>remove leading/trailing whitespace (also a method)</td>
+</tr>
+<tr>
+<td><code>split(s, sep?)</code></td>
+<td>split into a list (whitespace if <code>sep</code> omitted)</td>
+</tr>
+<tr>
+<td><code>join(list, sep)</code></td>
+<td>join a list of strings with a separator</td>
+</tr>
+</tbody>
+</table>
+<h2>Hashing and encoding</h2>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sha256(s)</code> / <code>md5(s)</code></td>
+<td>hex cryptographic digest of the UTF-8 text</td>
+</tr>
+<tr>
+<td><code>base64_encode(s)</code> / <code>base64_decode(s)</code></td>
+<td>Base64 encode / decode</td>
+</tr>
+</tbody>
+</table>
+<h2>Files</h2>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read_file(path)</code></td>
+<td>the whole file as a string</td>
+</tr>
+<tr>
+<td><code>read_lines(path)</code></td>
+<td>the file as a list of lines</td>
+</tr>
+<tr>
+<td><code>write_file(path, text)</code></td>
+<td>write text, replacing the file</td>
+</tr>
+<tr>
+<td><code>append_file(path, text)</code></td>
+<td>append text to the file</td>
+</tr>
+</tbody>
+</table>
+<h2>The operating system</h2>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>args()</code></td>
+<td>the program's command-line arguments (a list of strings)</td>
+</tr>
+<tr>
+<td><code>env(name, default?)</code></td>
+<td>an environment variable, or the default / <code>nil</code></td>
+</tr>
+<tr>
+<td><code>cwd()</code></td>
+<td>the current working directory</td>
+</tr>
+<tr>
+<td><code>exists(p)</code> / <code>is_file(p)</code> / <code>is_dir(p)</code></td>
+<td>filesystem queries</td>
+</tr>
+<tr>
+<td><code>list_dir(p)</code></td>
+<td>a sorted list of a directory's entries</td>
+</tr>
+<tr>
+<td><code>make_dir(p)</code></td>
+<td>create a directory (and any parents)</td>
+</tr>
+<tr>
+<td><code>remove_file(p)</code></td>
+<td>delete a file</td>
+</tr>
+<tr>
+<td><code>now()</code></td>
+<td>wall-clock seconds since the epoch</td>
+</tr>
+<tr>
+<td><code>clock()</code></td>
+<td>monotonic seconds, for measuring elapsed time</td>
+</tr>
+<tr>
+<td><code>sleep(seconds)</code></td>
+<td>pause execution</td>
+</tr>
+<tr>
+<td><code>exit(code?)</code></td>
+<td>end the program with an exit code</td>
+</tr>
+</tbody>
+</table>
+<h2>Regular expressions</h2>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>re_test(pattern, s)</code></td>
+<td>whether the pattern matches anywhere</td>
+</tr>
+<tr>
+<td><code>re_find(pattern, s)</code></td>
+<td>the first match, or <code>nil</code></td>
+</tr>
+<tr>
+<td><code>re_find_all(pattern, s)</code></td>
+<td>a list of all matches</td>
+</tr>
+<tr>
+<td><code>re_groups(pattern, s)</code></td>
+<td>capture groups of the first match, or <code>nil</code></td>
+</tr>
+<tr>
+<td><code>re_replace(pattern, s, repl)</code></td>
+<td>replace matches (<code>\1</code> backreferences)</td>
+</tr>
+<tr>
+<td><code>re_split(pattern, s)</code></td>
+<td>split on the pattern</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>regex</code> module (Chapter 17) wraps these with friendlier names.</p>
+<h2>Concurrency</h2>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>spawn(fn, args...)</code></td>
+<td>run <code>fn</code> as a background task; returns a task</td>
+</tr>
+<tr>
+<td><code>wait(task)</code></td>
+<td>block for a task and return its result</td>
+</tr>
+<tr>
+<td><code>channel(capacity?)</code></td>
+<td>create a channel (0 / omitted = unbuffered)</td>
+</tr>
+<tr>
+<td><code>send(ch, value)</code></td>
+<td>send a value (may block)</td>
+</tr>
+<tr>
+<td><code>recv(ch)</code></td>
+<td>receive a value (blocks; <code>nil</code> when closed and drained)</td>
+</tr>
+<tr>
+<td><code>close(ch)</code></td>
+<td>close a channel</td>
+</tr>
+</tbody>
+</table>
+<p>See Chapter 15 for the concurrency model.</p>
+<h2>Note for compiled programs</h2>
+<p>The native compiler supports the numeric, string, list/map, and core builtins.
+The OS-facing, networking, regex, hashing, and concurrency builtins are dynamic
+and run on the interpreter/VM; <code>sandy build</code> reports clearly if a program uses
+one.</p>
+<p>The next chapter covers the command-line tools around the language.</p></div><div class='chapter'><h1>Chapter 19 — Tooling and the CLI</h1>
+<p>Sandy ships with the tools a language needs to be pleasant to work in: a runner,
+a compiler, a type checker, a formatter, a language server, and a browser
+playground. All are invoked through <code>python -m sandy</code> (shown below as <code>sandy</code>).</p>
+<h2>The command line</h2>
+<pre><code>sandy                    start the interactive REPL
+sandy FILE.sy            run a program (tree-walking interpreter)
+sandy run FILE.sy        run a program (explicit)
+sandy --vm FILE.sy       run on the bytecode VM
+sandy --no-check FILE.sy run without the pre-run type check
+sandy check FILE.sy      type-check without running
+sandy build FILE.sy      compile the typed subset to a native binary
+sandy fmt FILE.sy        format a program in place
+sandy add NAME SPEC      add a dependency (version, path, or git URL)
+sandy install            resolve dependencies and write sandy.lock
+sandy publish            publish the current project to the registry
+sandy registry serve     run an HTTP registry server
+sandy lsp                start the language server (stdio, for editors)
+sandy --version          print the version
+sandy --help             show help
+</code></pre>
+<h3>Running</h3>
+<p><code>sandy run</code> uses the tree-walking interpreter — instant, full language, no build
+step. <code>sandy --vm run</code> uses the bytecode VM, a faster interpreter that is kept
+behavior-identical. Both type-check first; pass <code>--no-check</code> to skip that for a
+quick throwaway run.</p>
+<p>Arguments after the filename are passed to the program and read with <code>args()</code>:</p>
+<pre><code class="language-bash">sandy run tool.sy input.txt --verbose
+</code></pre>
+<h3>Building</h3>
+<p><code>sandy build</code> compiles the typed subset to a native executable (Chapter 16):</p>
+<pre><code class="language-bash">sandy build app.sy            # -&gt; ./app
+sandy build app.sy --run      # build and run
+sandy build app.sy -o mytool  # output name
+sandy build app.sy --emit-c   # keep the generated C
+sandy build app.sy --gc       # link the garbage collector
+</code></pre>
+<h3>Checking</h3>
+<p><code>sandy check</code> runs the type checker and reports, without executing:</p>
+<pre><code class="language-bash">sandy check app.sy
+</code></pre>
+<pre><code>app.sy: no type errors ✓
+</code></pre>
+<h2>The formatter</h2>
+<p><code>sandy fmt</code> rewrites a file in Sandy's canonical style — consistent indentation,
+spacing, and precedence-correct parenthesization — while preserving your comments
+and blank lines. It is idempotent (formatting twice changes nothing) and
+semantics-preserving.</p>
+<pre><code class="language-bash">sandy fmt app.sy            # reformat in place
+sandy fmt --check app.sy    # exit non-zero if not already formatted (for CI)
+</code></pre>
+<h2>The language server</h2>
+<p><code>sandy lsp</code> speaks the Language Server Protocol over stdio, so editors get live
+Sandy support: syntax and type-error diagnostics as you type, formatting,
+completion (keywords, builtins, and your file's own definitions), a symbol
+outline, hover signatures, and go-to-definition. It reuses the same lexer,
+parser, checker, and formatter as the CLI, so the editor and the command line
+always agree.</p>
+<p>A ready-to-use VS Code extension, with a TextMate grammar for syntax
+highlighting, lives in <code>editors/vscode/</code>.</p>
+<h2>The REPL</h2>
+<p>Running <code>sandy</code> with no file starts a read-eval-print loop. Type an expression to
+see its value, or statements to run them, with errors reported inline — handy for
+exploring the language and the standard library.</p>
+<h2>The browser playground</h2>
+<p><code>web/playground.html</code> runs the <strong>real</strong> Sandy implementation in the browser via
+WebAssembly (Pyodide) — no server, no install. Open it locally or host it on any
+static site to let people try Sandy from a link. It is generated from the package
+sources and kept in sync by a test, so it never drifts from the language.</p>
+<h2>Testing your own code</h2>
+<p>Because the <code>assert</code> module (Chapter 17) throws a descriptive message on failure,
+you can write tests as ordinary Sandy programs:</p>
+<pre><code class="language-sandy">import &quot;assert&quot; as assert
+
+fn add(a, b) { return a + b }
+
+assert.eq(add(2, 3), 5, &quot;adds&quot;)
+assert.is_true(add(2, 3) &gt; 0, &quot;positive&quot;)
+print(&quot;all tests passed&quot;)
+</code></pre>
+<p>Run them with <code>sandy run tests.sy</code> (or compile them). The language's own test
+suite additionally checks the interpreter and VM against each other and the
+native output against the interpreter.</p>
+<p>The final chapter is the formal grammar.</p></div><div class='chapter'><h1>Chapter 20 — Appendix: Grammar</h1>
+<p>This appendix gives the formal syntax of Sandy, the keyword and operator
+reference, and a compact summary of the language.</p>
+<h2>Grammar</h2>
+<p>Approximate EBNF (<code>*</code> = zero or more, <code>?</code> = optional, <code>|</code> = alternative).
+Newlines separate statements inside a block.</p>
+<pre><code class="language-ebnf">program    = statement* ;
+
+statement  = funcdef | structdef | import | if | while | for
+           | return | break | continue | try | throw | assign | exprstmt ;
+
+funcdef    = &quot;fn&quot; IDENT &quot;(&quot; params? &quot;)&quot; ( &quot;-&gt;&quot; type )? block ;
+params     = param ( &quot;,&quot; param )* ;
+param      = IDENT ( &quot;:&quot; type )? ;
+
+structdef  = &quot;struct&quot; IDENT &quot;{&quot; ( field &quot;,&quot;? )* &quot;}&quot; ;
+field      = IDENT ( &quot;:&quot; type )? ;
+
+import     = &quot;import&quot; STRING ( &quot;as&quot; IDENT )? ;
+
+if         = &quot;if&quot; expr block ( &quot;elif&quot; expr block )* ( &quot;else&quot; block )? ;
+while      = &quot;while&quot; expr block ;
+for        = &quot;for&quot; IDENT &quot;in&quot; expr block ;
+return     = &quot;return&quot; expr? ;
+break      = &quot;break&quot; ;
+continue   = &quot;continue&quot; ;
+try        = &quot;try&quot; block &quot;catch&quot; IDENT block ;
+throw      = &quot;throw&quot; expr ;
+
+assign     = target ( &quot;=&quot; | &quot;+=&quot; | &quot;-=&quot; | &quot;*=&quot; | &quot;/=&quot; ) expr
+           | IDENT &quot;:&quot; type &quot;=&quot; expr ;
+target     = IDENT | postfix &quot;[&quot; expr &quot;]&quot; | postfix &quot;.&quot; IDENT ;
+exprstmt   = expr ;
+
+block      = &quot;{&quot; statement* &quot;}&quot; ;
+
+expr       = or ;
+or         = and ( &quot;or&quot; and )* ;
+and        = not ( &quot;and&quot; not )* ;
+not        = &quot;not&quot; not | comparison ;
+comparison = additive ( ( &quot;==&quot; | &quot;!=&quot; | &quot;&lt;&quot; | &quot;&gt;&quot; | &quot;&lt;=&quot; | &quot;&gt;=&quot; ) additive )* ;
+additive   = multiplicative ( ( &quot;+&quot; | &quot;-&quot; ) multiplicative )* ;
+multiplicative = power ( ( &quot;*&quot; | &quot;/&quot; | &quot;%&quot; ) power )* ;
+power      = unary ( &quot;**&quot; power )? ;
+unary      = &quot;-&quot; unary | postfix ;
+postfix    = primary ( call | index | attr )* ;
+call       = &quot;(&quot; ( expr ( &quot;,&quot; expr )* )? &quot;)&quot; ;
+index      = &quot;[&quot; expr &quot;]&quot; ;
+attr       = &quot;.&quot; IDENT ;
+primary    = INT | FLOAT | STRING | &quot;true&quot; | &quot;false&quot; | &quot;nil&quot;
+           | IDENT | &quot;(&quot; expr &quot;)&quot; | list | map ;
+list       = &quot;[&quot; ( expr ( &quot;,&quot; expr )* &quot;,&quot;? )? &quot;]&quot; ;
+map        = &quot;{&quot; ( entry ( &quot;,&quot; entry )* &quot;,&quot;? )? &quot;}&quot; ;
+entry      = expr &quot;:&quot; expr ;
+
+type       = &quot;int&quot; | &quot;float&quot; | &quot;string&quot; | &quot;bool&quot; | &quot;nil&quot; | &quot;any&quot;
+           | &quot;fn&quot; ( &quot;(&quot; ( type ( &quot;,&quot; type )* )? &quot;)&quot; ( &quot;-&gt;&quot; type )? )?
+           | &quot;list&quot; ( &quot;&lt;&quot; type &quot;&gt;&quot; )?
+           | &quot;map&quot; ( &quot;&lt;&quot; type &quot;,&quot; type &quot;&gt;&quot; )?
+           | IDENT ;   (* a struct name *)
+</code></pre>
+<h2>Operator precedence</h2>
+<p>From lowest (binds loosest) to highest (binds tightest):</p>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Operators</th>
+<th>Associativity</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>or</code></td>
+<td>left</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>and</code></td>
+<td>left</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>not</code> (unary)</td>
+<td>right</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>==</code> <code>!=</code> <code>&lt;</code> <code>&gt;</code> <code>&lt;=</code> <code>&gt;=</code></td>
+<td>left</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>+</code> <code>-</code></td>
+<td>left</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>*</code> <code>/</code> <code>%</code></td>
+<td>left</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>**</code></td>
+<td>right</td>
+</tr>
+<tr>
+<td>8</td>
+<td>unary <code>-</code></td>
+<td>right</td>
+</tr>
+<tr>
+<td>9</td>
+<td>postfix <code>()</code> <code>[]</code> <code>.</code></td>
+<td>left</td>
+</tr>
+</tbody>
+</table>
+<h2>Keywords</h2>
+<p>Reserved words that cannot be used as identifiers:</p>
+<pre><code>fn   return   if   elif   else   while   for   in   break   continue
+try   catch   throw   struct   import   true   false   nil   and   or   not
+</code></pre>
+<p><code>as</code> is a soft keyword, meaningful only in <code>import "x" as name</code>.</p>
+<h2>Escape sequences in strings</h2>
+<pre><code>\n   newline        \&quot;   double quote
+\t   tab            \\   backslash
+\r   carriage return
+{expr}  interpolation      {{  literal {      }}  literal }
+</code></pre>
+<h2>Semantic quick reference</h2>
+<p>A few rules that are easy to forget:</p>
+<ul>
+<li>Statements are separated by <strong>newlines</strong>; there is no <code>;</code>.</li>
+<li><code>elif</code> and <code>else</code> sit on the <strong>same line</strong> as the preceding <code>}</code>.</li>
+<li><strong><code>/</code> always produces a float</strong>; there is no integer-division operator (use
+  <code>floor(a / b)</code>).</li>
+<li><code>%</code> is <strong>floor modulo</strong> (the result has the sign of the divisor).</li>
+<li><code>**</code> is exponentiation and is <strong>right-associative</strong>.</li>
+<li>Scope is <strong>function-level</strong>; loop and <code>if</code> blocks do not create a new scope.</li>
+<li>Structs, lists, and maps are <strong>reference values</strong>; scalars and strings are
+  passed by value.</li>
+<li>A caught error is always a <strong>string</strong> (the message).</li>
+<li><code>type()</code> returns the type name; struct instances report their struct's name.</li>
+</ul>
+<h2>The language in one screen</h2>
+<pre><code class="language-sandy"># variables, interpolation
+name = &quot;Sandy&quot;
+print(&quot;hello {name}&quot;)
+
+# functions, optional types
+fn add(a: int, b: int) -&gt; int { return a + b }
+
+# control flow
+for i in range(3) {
+    if i % 2 == 0 { print(&quot;{i} even&quot;) } else { print(&quot;{i} odd&quot;) }
+}
+
+# collections
+xs = [1, 2, 3]
+push(xs, 4)
+m = {&quot;a&quot;: 1}
+m[&quot;b&quot;] = 2
+
+# structs
+struct Point { x: int, y: int }
+p = Point(1, 2)
+p.y += 5
+
+# errors
+try { throw &quot;nope&quot; } catch e { print(e) }
+
+# modules
+import &quot;math&quot; as math
+print(math.gcd(12, 18))
+
+# concurrency
+ch = channel()
+fn worker() { send(ch, 42) }
+spawn(worker)
+print(recv(ch))
+</code></pre>
+<hr />
+<p><em>This is the end of the book. You now know all of Sandy: the syntax, the type
+system, the standard library, the tools, and how to compile it for speed. The
+<a href="../reference.md">reference</a> is the terse companion, the
+<a href="../../examples">examples</a> are runnable, and the source is yours to read —
+Sandy is a small language, and reading its implementation is one of the best
+ways to understand it.</em></p></div></body></html>

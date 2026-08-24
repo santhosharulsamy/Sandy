@@ -1,0 +1,108 @@
+# Sandy standard library: CSV parsing and formatting (RFC 4180-ish).
+#
+#     import "csv" as csv
+#     rows = csv.parse("name,age\nAda,36\n\"Grace, H\",45")
+#     print(rows[2][0])                      # Grace, H
+#     print(csv.format([["a", "b"], ["c,d", "e"]]))
+#
+# Fields are comma-separated and records newline-separated. A field may be
+# double-quoted, in which case it can contain commas, newlines, and doubled
+# quotes ("") for a literal quote. Every field is returned as a string.
+
+fn parse(text) {
+    rows = []
+    n = len(text)
+    if n == 0 { return rows }
+    row = []
+    field = ""
+    in_quotes = false
+    i = 0
+    while i < n {
+        ch = text[i]
+        if in_quotes {
+            if ch == "\"" and i + 1 < n and text[i + 1] == "\"" {
+                field = field + "\""
+                i += 2
+            } elif ch == "\"" {
+                in_quotes = false
+                i += 1
+            } else {
+                field = field + ch
+                i += 1
+            }
+        } elif ch == "\"" {
+            in_quotes = true
+            i += 1
+        } elif ch == "," {
+            push(row, field)
+            field = ""
+            i += 1
+        } elif ch == "\n" {
+            push(row, field)
+            push(rows, row)
+            row = []
+            field = ""
+            i += 1
+        } elif ch == "\r" {
+            i += 1                          # CRLF: drop the CR, the LF ends the row
+        } else {
+            field = field + ch
+            i += 1
+        }
+    }
+    # Flush the final field/record unless the input ended exactly on a newline.
+    if field != "" or len(row) > 0 {
+        push(row, field)
+        push(rows, row)
+    }
+    return rows
+}
+
+# Parse a single line into a list of fields.
+fn parse_line(line) {
+    rows = parse(line)
+    if len(rows) == 0 { return [] }
+    return rows[0]
+}
+
+fn _needs_quote(f) {
+    for ch in f {
+        if ch == "," or ch == "\"" or ch == "\n" or ch == "\r" {
+            return true
+        }
+    }
+    return false
+}
+
+fn _escape(f) {
+    if not _needs_quote(f) { return f }
+    inner = ""
+    for ch in f {
+        if ch == "\"" { inner = inner + "\"\"" } else { inner = inner + ch }
+    }
+    return "\"" + inner + "\""
+}
+
+# Format one record (a list of values) as a CSV line.
+fn format_row(row) {
+    out = ""
+    i = 0
+    for f in row {
+        if i > 0 { out = out + "," }
+        out = out + _escape(str(f))
+        i += 1
+    }
+    return out
+}
+
+# Format a list of records as CSV text (records joined by newlines).
+fn format(rows) {
+    out = ""
+    i = 0
+    for row in rows {
+        if i > 0 { out = out + "\n" }
+        out = out + format_row(row)
+        i += 1
+    }
+    return out
+}

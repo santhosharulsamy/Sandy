@@ -1,0 +1,32 @@
+# First-class functions in Sandy.
+#
+# A function can be passed as an argument, stored in a variable, and returned.
+# With the `fn(...) -> R` type annotation the checker verifies calls made
+# through the value, and the program still compiles to a native binary:
+#
+#     sandy run examples/functions.sy
+#     sandy build examples/functions.sy --run
+
+fn apply(f: fn(int) -> int, x: int) -> int {
+    return f(x)
+}
+
+fn twice(n: int) -> int { return n * 2 }
+fn square(n: int) -> int { return n * n }
+fn add(a: int, b: int) -> int { return a + b }
+
+print(apply(twice, 5))     # 10
+print(apply(square, 5))    # 25
+
+# Store a function in a typed variable and call through it.
+op: fn(int, int) -> int = add
+print(op(3, 4))            # 7
+
+# Return a function value and call the result.
+fn picker(big: bool) -> fn(int) -> int {
+    if big { return square }
+    return twice
+}
+
+print(picker(true)(6))     # 36
+print(picker(false)(6))    # 12

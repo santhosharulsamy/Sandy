@@ -1,0 +1,107 @@
+# Sandy standard library: text and character helpers.
+#
+#     import "text" as text
+#     print(text.title("hello there"))      # "Hello There"
+#     print(text.words("  a  b c "))        # ["a", "b", "c"]
+#     if text.is_digit(ch) { ... }
+#
+# Character predicates take a single-character string. Pairs with the `ord`
+# and `chr` builtins for code-point work, and with the `strings` module.
+
+fn is_digit(ch) {
+    return len(ch) == 1 and "0" <= ch and ch <= "9"
+}
+
+fn is_upper(ch) {
+    return len(ch) == 1 and "A" <= ch and ch <= "Z"
+}
+
+fn is_lower(ch) {
+    return len(ch) == 1 and "a" <= ch and ch <= "z"
+}
+
+fn is_alpha(ch) {
+    return is_upper(ch) or is_lower(ch)
+}
+
+fn is_alnum(ch) {
+    return is_alpha(ch) or is_digit(ch)
+}
+
+fn is_space(ch) {
+    return ch == " " or ch == "\t" or ch == "\n" or ch == "\r"
+}
+
+# The characters of a string as a list.
+fn chars(s) {
+    out = []
+    for ch in s {
+        push(out, ch)
+    }
+    return out
+}
+
+# Split into lines on newlines (a trailing newline yields a trailing "").
+fn lines(s) {
+    return split(s, "\n")
+}
+
+# Split into words on runs of whitespace, ignoring leading/trailing space.
+fn words(s) {
+    out = []
+    current = ""
+    for ch in s {
+        if is_space(ch) {
+            if current != "" {
+                push(out, current)
+                current = ""
+            }
+        } else {
+            current = current + ch
+        }
+    }
+    if current != "" { push(out, current) }
+    return out
+}
+
+# Capitalize the first letter of each whitespace-separated word.
+fn title(s) {
+    out = ""
+    at_start = true
+    for ch in s {
+        if is_space(ch) {
+            out = out + ch
+            at_start = true
+        } elif at_start {
+            out = out + ch.upper()
+            at_start = false
+        } else {
+            out = out + ch.lower()
+        }
+    }
+    return out
+}
+
+# Count non-overlapping occurrences of a non-empty substring.
+fn count(s, sub) {
+    if sub == "" { return 0 }
+    total = 0
+    n = len(s)
+    m = len(sub)
+    i = 0
+    while i <= n - m {
+        window = ""
+        j = 0
+        while j < m {
+            window = window + s[i + j]
+            j += 1
+        }
+        if window == sub {
+            total += 1
+            i += m
+        } else {
+            i += 1
+        }
+    }
+    return total
+}

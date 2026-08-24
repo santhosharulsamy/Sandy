@@ -1,0 +1,73 @@
+# Sandy standard library: filesystem and path helpers.
+#
+#     import "os" as os
+#     for name in list_dir(".") {
+#         if os.extension(name) == "sy" { print(name) }
+#     }
+#
+# The `args`, `cwd`, `exists`, `is_file`, `is_dir`, `list_dir`, `make_dir`,
+# and `remove_file` builtins do the OS work; this module adds path-string
+# helpers (pure Sandy) that pair with them.
+
+# Join two path segments with a single separator.
+fn join(a, b) {
+    if a == "" { return b }
+    if b == "" { return a }
+    if a.ends_with("/") { return a + b }
+    return a + "/" + b
+}
+
+# The final component of a path: "a/b/c.sy" -> "c.sy".
+fn basename(path) {
+    parts = split(path, "/")
+    return parts[len(parts) - 1]
+}
+
+# Everything before the final component: "a/b/c.sy" -> "a/b" ("" if none).
+fn dirname(path) {
+    parts = split(path, "/")
+    if len(parts) <= 1 { return "" }
+    out = ""
+    i = 0
+    while i < len(parts) - 1 {
+        if i > 0 { out = out + "/" }
+        out = out + parts[i]
+        i += 1
+    }
+    return out
+}
+
+# The extension without its dot: "photo.png" -> "png" ("" if none). A leading
+# dot (a dotfile like ".bashrc") is not treated as an extension.
+fn extension(path) {
+    name = basename(path)
+    dot = 0 - 1
+    i = 0
+    for ch in name {
+        if ch == "." { dot = i }
+        i += 1
+    }
+    if dot <= 0 { return "" }
+    out = ""
+    j = dot + 1
+    while j < len(name) {
+        out = out + name[j]
+        j += 1
+    }
+    return out
+}
+
+# The filename without its extension: "a/b/c.sy" -> "c".
+fn stem(path) {
+    name = basename(path)
+    ext = extension(path)
+    if ext == "" { return name }
+    keep = len(name) - len(ext) - 1
+    out = ""
+    i = 0
+    while i < keep {
+        out = out + name[i]
+        i += 1
+    }
+    return out
+}

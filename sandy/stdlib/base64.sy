@@ -1,0 +1,16 @@
+# Sandy standard library: Base64 encoding.
+#
+#     import "base64" as base64
+#     print(base64.encode("hello"))         # "aGVsbG8="
+#     print(base64.decode("aGVsbG8="))      # "hello"
+#
+# Thin wrappers over the base64_encode / base64_decode builtins, which encode
+# the UTF-8 bytes of a string. decode() throws on malformed input.
+
+fn encode(s) {
+    return base64_encode(s)
+}
+
+fn decode(s) {
+    return base64_decode(s)
+}

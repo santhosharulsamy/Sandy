@@ -1,0 +1,67 @@
+# Sandy standard library: set operations over lists.
+#
+#     import "sets" as sets
+#     print(sets.union([1, 2], [2, 3]))          # [1, 2, 3]
+#     print(sets.intersection([1, 2, 3], [2, 4])) # [2]
+#
+# Sets are represented as lists of unique values; results preserve first-seen
+# order and never contain duplicates.
+
+fn contains(xs, target) {
+    for x in xs {
+        if x == target { return true }
+    }
+    return false
+}
+
+fn unique(xs) {
+    out = []
+    for x in xs {
+        if not contains(out, x) { push(out, x) }
+    }
+    return out
+}
+
+fn union(a, b) {
+    out = unique(a)
+    for x in b {
+        if not contains(out, x) { push(out, x) }
+    }
+    return out
+}
+
+fn intersection(a, b) {
+    out = []
+    for x in a {
+        if contains(b, x) and not contains(out, x) { push(out, x) }
+    }
+    return out
+}
+
+fn difference(a, b) {
+    out = []
+    for x in a {
+        if not contains(b, x) and not contains(out, x) { push(out, x) }
+    }
+    return out
+}
+
+fn symmetric_difference(a, b) {
+    out = difference(a, b)
+    for x in difference(b, a) { push(out, x) }
+    return out
+}
+
+fn is_subset(a, b) {
+    for x in a {
+        if not contains(b, x) { return false }
+    }
+    return true
+}
+
+fn is_disjoint(a, b) {
+    for x in a {
+        if contains(b, x) { return false }
+    }
+    return true
+}

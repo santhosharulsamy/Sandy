@@ -1,0 +1,57 @@
+# User-defined types with `struct`.
+#
+# A struct groups named fields into a value. Construct one by calling the
+# struct name with a value per field, read/write fields with `.`, and compare
+# structs by value.
+
+struct Point {
+    x
+    y
+}
+
+fn distance(a, b) {
+    dx = a.x - b.x
+    dy = a.y - b.y
+    return sqrt(dx * dx + dy * dy)
+}
+
+origin = Point(0, 0)
+p = Point(3, 4)
+print(p)  # Point(x=3, y=4)
+print("distance = {distance(origin, p)}")
+
+# Fields are mutable.
+p.x += 1
+p.y = p.y * 2
+print(p)  # Point(x=4, y=8)
+
+# type() reports the struct name; equality is by value.
+print(type(p))  # Point
+print(Point(1, 2) == Point(1, 2))  # true
+
+# Structs compose with everything else — lists, maps, functions.
+struct Task {
+    title
+    done
+}
+
+tasks = [Task("write parser", true), Task("write vm", true), Task("write structs", false)]
+
+fn summarize(items) {
+    left = 0
+    for t in items {
+        if not t.done {
+            left += 1
+        }
+    }
+    return left
+}
+
+for t in tasks {
+    mark = "[x]"
+    if not t.done {
+        mark = "[ ]"
+    }
+    print("{mark} {t.title}")
+}
+print("{summarize(tasks)} task(s) left")

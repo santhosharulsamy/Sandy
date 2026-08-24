@@ -1,0 +1,30 @@
+# Sandy standard library: assertions for writing tests in Sandy itself.
+#
+#     import "assert" as assert
+#     assert.eq(add(2, 2), 4, "adds")
+#     assert.is_true(is_prime(7), "7 is prime")
+#
+# On failure an assertion throws a descriptive message, which a `try`/`catch`
+# (or a test runner) can report.
+
+fn is_true(cond, msg) {
+    if not cond { throw "assertion failed: " + msg }
+}
+
+fn is_false(cond, msg) {
+    if cond { throw "assertion failed: " + msg }
+}
+
+fn eq(actual, expected, msg) {
+    if actual != expected {
+        throw "assertion failed: " + msg +
+              " (expected " + str(expected) + ", got " + str(actual) + ")"
+    }
+}
+
+fn neq(actual, unexpected, msg) {
+    if actual == unexpected {
+        throw "assertion failed: " + msg +
+              " (did not expect " + str(unexpected) + ")"
+    }
+}

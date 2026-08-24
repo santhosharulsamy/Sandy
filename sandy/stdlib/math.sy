@@ -1,0 +1,106 @@
+# Sandy standard library: math helpers.
+#
+#     import "math" as math
+#     print(math.gcd(48, 36))
+
+import "sort" as _sort
+
+pi = 3.141592653589793
+e = 2.718281828459045
+tau = 6.283185307179586
+
+fn sign(x) {
+    if x > 0 { return 1 }
+    if x < 0 { return -1 }
+    return 0
+}
+
+fn clamp(x, lo, hi) {
+    if x < lo { return lo }
+    if x > hi { return hi }
+    return x
+}
+
+fn gcd(a, b) {
+    a = abs(a)
+    b = abs(b)
+    while b != 0 {
+        t = b
+        b = a % b
+        a = t
+    }
+    return a
+}
+
+fn factorial(n) {
+    if n < 0 { throw "factorial of a negative number" }
+    result = 1
+    i = 2
+    while i <= n {
+        result = result * i
+        i += 1
+    }
+    return result
+}
+
+fn is_prime(n) {
+    if n < 2 { return false }
+    i = 2
+    while i * i <= n {
+        if n % i == 0 { return false }
+        i += 1
+    }
+    return true
+}
+
+fn mean(xs) {
+    if len(xs) == 0 { throw "mean of an empty list" }
+    return sum(xs) / len(xs)
+}
+
+fn lcm(a, b) {
+    if a == 0 or b == 0 { return 0 }
+    return floor(abs(a * b) / gcd(a, b))
+}
+
+fn median(xs) {
+    n = len(xs)
+    if n == 0 { throw "median of an empty list" }
+    s = _sort.sort(xs)
+    mid = floor(n / 2)
+    if n % 2 == 1 { return s[mid] }
+    return (s[mid - 1] + s[mid]) / 2
+}
+
+fn variance(xs) {
+    n = len(xs)
+    if n == 0 { throw "variance of an empty list" }
+    m = mean(xs)
+    total = 0.0
+    for x in xs {
+        d = x - m
+        total = total + d * d
+    }
+    return total / n
+}
+
+fn stddev(xs) {
+    return sqrt(variance(xs))
+}
+
+fn hypot(a, b) {
+    return sqrt(a * a + b * b)
+}
+
+fn deg2rad(deg) {
+    return deg * pi / 180.0
+}
+
+fn rad2deg(rad) {
+    return rad * 180.0 / pi
+}
+
+# Logarithm of x in an arbitrary base.
+fn log_base(x, base) {
+    return log(x) / log(base)
+}

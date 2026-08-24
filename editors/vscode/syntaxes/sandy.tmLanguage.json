@@ -1,0 +1,132 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Sandy",
+  "scopeName": "source.sandy",
+  "fileTypes": ["sy"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#function-def" },
+    { "include": "#struct-def" },
+    { "include": "#keywords" },
+    { "include": "#constants" },
+    { "include": "#types" },
+    { "include": "#builtins" },
+    { "include": "#function-call" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "name": "comment.line.number-sign.sandy",
+      "match": "#.*$"
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.sandy",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            { "include": "#string-escape" },
+            { "include": "#interpolation" }
+          ]
+        },
+        {
+          "name": "string.quoted.single.sandy",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            { "include": "#string-escape" },
+            { "include": "#interpolation" }
+          ]
+        }
+      ]
+    },
+    "string-escape": {
+      "name": "constant.character.escape.sandy",
+      "match": "\\\\[ntr0\\\\\"']"
+    },
+    "interpolation": {
+      "patterns": [
+        {
+          "name": "constant.character.escape.sandy",
+          "match": "\\{\\{|\\}\\}"
+        },
+        {
+          "name": "meta.interpolation.sandy",
+          "begin": "\\{",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": { "name": "punctuation.section.interpolation.begin.sandy" }
+          },
+          "endCaptures": {
+            "0": { "name": "punctuation.section.interpolation.end.sandy" }
+          },
+          "patterns": [{ "include": "$self" }]
+        }
+      ]
+    },
+    "numbers": {
+      "name": "constant.numeric.sandy",
+      "match": "\\b\\d+(\\.\\d+)?\\b|\\.\\d+"
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.sandy",
+          "match": "\\b(if|elif|else|while|for|in|break|continue|return|try|catch|throw)\\b"
+        },
+        {
+          "name": "keyword.declaration.sandy",
+          "match": "\\b(fn|struct|import)\\b"
+        },
+        {
+          "name": "keyword.operator.word.sandy",
+          "match": "\\b(and|or|not)\\b"
+        },
+        {
+          "name": "keyword.control.import.sandy",
+          "match": "\\bas\\b"
+        }
+      ]
+    },
+    "constants": {
+      "name": "constant.language.sandy",
+      "match": "\\b(true|false|nil)\\b"
+    },
+    "function-def": {
+      "match": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "keyword.declaration.sandy" },
+        "2": { "name": "entity.name.function.sandy" }
+      }
+    },
+    "struct-def": {
+      "match": "\\b(struct)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "keyword.declaration.sandy" },
+        "2": { "name": "entity.name.type.sandy" }
+      }
+    },
+    "types": {
+      "match": "(->|:)\\s*([A-Za-z_][A-Za-z0-9_]*(<[^>]*>)?)",
+      "captures": {
+        "1": { "name": "keyword.operator.sandy" },
+        "2": { "name": "support.type.sandy" }
+      }
+    },
+    "builtins": {
+      "name": "support.function.builtin.sandy",
+      "match": "\\b(print|input|len|type|str|int|float|bool|range|abs|min|max|sum|round|sqrt|floor|ceil|pow|ord|chr|sin|cos|tan|exp|log|log10|sha256|md5|base64_encode|base64_decode|push|pop|keys|values|has|upper|lower|trim|split|join|read_file|read_lines|write_file|append_file|now|clock|sleep|env|exit|args|cwd|exists|is_file|is_dir|list_dir|make_dir|remove_file|http_get|http_post|re_test|re_find|re_find_all|re_groups|re_replace|re_split|spawn|wait|channel|send|recv|close)\\b(?=\\s*\\()"
+    },
+    "function-call": {
+      "name": "entity.name.function.call.sandy",
+      "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\b(?=\\s*\\()"
+    },
+    "operators": {
+      "name": "keyword.operator.sandy",
+      "match": "\\*\\*|==|!=|<=|>=|\\+=|-=|\\*=|/=|[-+*/%<>=]"
+    }
+  }
+}

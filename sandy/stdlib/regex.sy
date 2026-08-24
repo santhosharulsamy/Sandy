@@ -1,0 +1,40 @@
+# Sandy standard library: regular expressions.
+#
+#     import "regex" as regex
+#     print(regex.test("^\\d+$", "12345"))          # true
+#     print(regex.find_all("\\w+", "a, bb, ccc"))    # ["a", "bb", "ccc"]
+#     print(regex.replace("\\s+", "a   b", "_"))     # "a_b"
+#
+# Thin, clearly-named wrappers over the `re_*` builtins, which use the host
+# regex engine (the usual syntax: \d \w \s, anchors, groups, quantifiers).
+# An invalid pattern throws.
+
+# Whether the pattern matches anywhere in s.
+fn test(pattern, s) {
+    return re_test(pattern, s)
+}
+
+# The first match as a string, or nil if there is none.
+fn find(pattern, s) {
+    return re_find(pattern, s)
+}
+
+# Every (non-overlapping) match as a list of strings.
+fn find_all(pattern, s) {
+    return re_find_all(pattern, s)
+}
+
+# The capture groups of the first match as a list, or nil if no match.
+fn groups(pattern, s) {
+    return re_groups(pattern, s)
+}
+
+# s with every match replaced by repl (\1, \2 refer to capture groups).
+fn replace(pattern, s, repl) {
+    return re_replace(pattern, s, repl)
+}
+
+# Split s on the pattern, returning the pieces.
+fn split(pattern, s) {
+    return re_split(pattern, s)
+}

@@ -1,0 +1,51 @@
+# Concurrency in Sandy: tasks and channels (Go-flavored).
+#
+#     sandy run examples/concurrency.sy
+#
+# `spawn` runs a function as a background task; channels are the safe way for
+# tasks to talk to each other — "share memory by communicating."
+
+# --- spawn + wait: run work in the background and collect the result ---
+fn slow_square(n) {
+    return n * n
+}
+task = spawn(slow_square, 12)
+print("square is " + str(wait(task)))
+
+# --- a worker pool feeding results into one channel ---
+jobs = [1, 2, 3, 4, 5]
+results = channel(len(jobs))
+
+fn work(n) {
+    send(results, n * n)
+}
+for n in jobs {
+    spawn(work, n)
+}
+
+total = 0
+i = 0
+while i < len(jobs) {
+    total += recv(results)
+    i += 1
+}
+print("sum of squares: " + str(total))
+
+# --- a producer that streams values then closes the channel ---
+stream = channel()
+
+fn produce() {
+    for k in range(1, 6) {
+        send(stream, k)
+    }
+    close(stream)
+}
+spawn(produce)
+
+collected = []
+value = recv(stream)
+while value != nil {
+    push(collected, value)
+    value = recv(stream)
+}
+print("streamed: " + str(collected))

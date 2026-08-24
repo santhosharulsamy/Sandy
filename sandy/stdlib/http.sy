@@ -1,0 +1,35 @@
+# Sandy standard library: HTTP helpers.
+#
+#     import "http" as http
+#     data = http.get_json("https://api.example.com/thing")
+#     print(data["name"])
+#
+# Thin, convenient wrappers over the `http_get` / `http_post` builtins, which
+# return a response map { status, ok, body }. These helpers add JSON encoding
+# and decoding and a couple of accessors.
+
+import "json" as json
+
+# Response accessors.
+fn status(response) { return response["status"] }
+fn body(response) { return response["body"] }
+fn ok(response) { return response["ok"] }
+
+# GET a URL and decode the JSON body. Throws if the request was not 2xx.
+fn get_json(url) {
+    response = http_get(url)
+    if not response["ok"] {
+        throw "http GET " + url + " returned status " + str(response["status"])
+    }
+    return json.parse(response["body"])
+}
+
+# POST a Sandy value as JSON and decode the JSON response body. Throws on
+# a non-2xx status.
+fn post_json(url, value) {
+    response = http_post(url, json.to_json(value), "application/json")
+    if not response["ok"] {
+        throw "http POST " + url + " returned status " + str(response["status"])
+    }
+    return json.parse(response["body"])
+}

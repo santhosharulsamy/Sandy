@@ -1,0 +1,81 @@
+# Sandy standard library: pseudo-random numbers.
+#
+#     import "random" as random
+#     random.seed(42)
+#     print(random.randint(1, 6))       # a dice roll
+#     print(random.shuffle([1, 2, 3, 4]))
+#
+# A small, seedable linear-congruential generator. It is deterministic: the
+# same seed always produces the same sequence, so programs (and tests) are
+# reproducible. State lives in a struct so it persists across calls.
+
+struct _State { value }
+
+_rng = _State(2463534242)
+
+# The LCG constants and modulus (2^64) — the classic 64-bit multiplier.
+_MULT = 6364136223846793005
+_INC = 1442695040888963407
+_MOD = 18446744073709551616
+
+fn seed(n) {
+    _rng.value = n % _MOD
+}
+
+fn _step() {
+    _rng.value = (_MULT * _rng.value + _INC) % _MOD
+    return _rng.value
+}
+
+# A float in [0, 1).
+fn next() {
+    return _step() / _MOD
+}
+
+# An integer in [lo, hi], inclusive on both ends.
+fn randint(lo, hi) {
+    if hi < lo { throw "random.randint: hi is less than lo" }
+    span = hi - lo + 1
+    return lo + _step() % span
+}
+
+# true or false with equal probability.
+fn boolean() {
+    return _step() % 2 == 0
+}
+
+# A uniformly-chosen element of a non-empty list.
+fn choice(xs) {
+    if len(xs) == 0 { throw "random.choice: empty list" }
+    return xs[randint(0, len(xs) - 1)]
+}
+
+# A new list with the elements shuffled (Fisher-Yates); the input is unchanged.
+fn shuffle(xs) {
+    out = []
+    for x in xs { push(out, x) }
+    i = len(out) - 1
+    while i > 0 {
+        j = randint(0, i)
+        tmp = out[i]
+        out[i] = out[j]
+        out[j] = tmp
+        i -= 1
+    }
+    return out
+}
+
+# k distinct elements chosen at random (0 <= k <= len(xs)).
+fn sample(xs, k) {
+    if k < 0 or k > len(xs) {
+        throw "random.sample: k is out of range"
+    }
+    shuffled = shuffle(xs)
+    out = []
+    i = 0
+    while i < k {
+        push(out, shuffled[i])
+        i += 1
+    }
+    return out
+}

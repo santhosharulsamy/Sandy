@@ -1,0 +1,67 @@
+# Sandy standard library: map (dictionary) helpers.
+#
+#     import "maps" as maps
+#     print(maps.get(scores, "ada", 0))     # value, or a default
+#     print(maps.items({"a": 1, "b": 2}))   # [["a", 1], ["b", 2]]
+#
+# Sandy maps already support m[k], has(m, k), keys(m), values(m), and
+# iteration; these add the common conveniences on top.
+
+# The value for key k, or `default` if the key is absent.
+fn get(m, k, default) {
+    if has(m, k) { return m[k] }
+    return default
+}
+
+# A list of [key, value] pairs, in insertion order.
+fn items(m) {
+    out = []
+    for k in m {
+        push(out, [k, m[k]])
+    }
+    return out
+}
+
+# Build a map from a list of [key, value] pairs.
+fn from_pairs(pairs) {
+    out = {}
+    for pair in pairs {
+        out[pair[0]] = pair[1]
+    }
+    return out
+}
+
+# A new map with b's entries layered over a's (b wins on conflicts).
+fn merge(a, b) {
+    out = {}
+    for k in a { out[k] = a[k] }
+    for k in b { out[k] = b[k] }
+    return out
+}
+
+# Swap keys and values (later duplicate values overwrite earlier keys).
+fn invert(m) {
+    out = {}
+    for k in m {
+        out[m[k]] = k
+    }
+    return out
+}
+
+# A new map with the same keys and `f` applied to each value.
+fn map_values(m, f) {
+    out = {}
+    for k in m {
+        out[k] = f(m[k])
+    }
+    return out
+}
+
+# A new map keeping only the given keys that are present.
+fn pick(m, wanted) {
+    out = {}
+    for k in wanted {
+        if has(m, k) { out[k] = m[k] }
+    }
+    return out
+}
