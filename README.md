@@ -36,6 +36,65 @@ host it on any static site). No install required.
 
 ---
 
+## Install & run — from zero
+
+New to all this? Here's the whole path, start to finish. You only need **Python
+3.8 or newer** — Sandy has no other dependencies.
+
+**1. Install Python** (skip if you already have it).
+Download it from [python.org/downloads](https://www.python.org/downloads/) and
+run the installer. On Windows, tick **"Add Python to PATH"** during setup. To
+check it worked, open a terminal and run:
+
+```bash
+python --version
+```
+
+**2. Get Sandy.** Download this repository (green **Code** button →
+**Download ZIP**) and unzip it, or clone it:
+
+```bash
+git clone https://github.com/santhosharulsamy/Sandy.git
+cd Sandy
+```
+
+**3. Run your first program.**
+
+```bash
+python -m sandy examples/hello.sy
+```
+
+You should see it print a greeting. That's it — you're running Sandy. 🎉
+
+**4. Write your own.** Create a file called `hi.sy` with:
+
+```sandy
+fn main() {
+    print("Sandy is running!")
+}
+
+main()
+```
+
+…and run it:
+
+```bash
+python -m sandy hi.sy
+```
+
+**Want the `sandy` command everywhere?** Install it once, then drop the
+`python -m` prefix:
+
+```bash
+pip install -e .
+sandy hi.sy
+```
+
+For everything else — the bytecode VM, native compilation, the formatter, and
+the REPL — see the command reference just below.
+
+---
+
 ## Quick start
 
 No installation needed — you just need Python 3.8+.
