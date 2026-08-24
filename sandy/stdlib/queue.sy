@@ -1,0 +1,61 @@
+# Sandy standard library: stacks and queues built on immutable lists.
+#
+#     import "queue" as queue
+#     s = queue.new()
+#     s = queue.add(s, 1)
+#     s = queue.add(s, 2)
+#     print(queue.peek_last(s))    # 2   (stack: last in, first out)
+#     print(queue.peek_first(s))   # 1   (queue: first in, first out)
+#
+# Every operation returns a NEW collection instead of mutating in place, so the
+# original is never changed. A collection is just a list, so `len`, iteration,
+# and indexing work on it directly too.
+
+fn new() {
+    return []
+}
+
+fn is_empty(c) {
+    return len(c) == 0
+}
+
+fn size(c) {
+    return len(c)
+}
+
+# Add to the end. This is a stack "push" and a queue "enqueue" at once.
+fn add(c, x) {
+    return c + [x]
+}
+
+# Stack (LIFO): look at / remove the most recently added item.
+fn peek_last(c) {
+    if len(c) == 0 { throw "peek_last of an empty collection" }
+    return c[len(c) - 1]
+}
+
+fn pop_last(c) {
+    if len(c) == 0 { throw "pop_last of an empty collection" }
+    return _without_index(c, len(c) - 1)
+}
+
+# Queue (FIFO): look at / remove the oldest item.
+fn peek_first(c) {
+    if len(c) == 0 { throw "peek_first of an empty collection" }
+    return c[0]
+}
+
+fn pop_first(c) {
+    if len(c) == 0 { throw "pop_first of an empty collection" }
+    return _without_index(c, 0)
+}
+
+fn _without_index(c, idx) {
+    out = []
+    i = 0
+    for x in c {
+        if i != idx { push(out, x) }
+        i += 1
+    }
+    return out
+}

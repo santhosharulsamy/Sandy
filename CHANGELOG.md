@@ -21,6 +21,7 @@ All notable changes to Sandy are recorded here. The format is based on
 ### Standard library
 - Math, sorting, sets, maps, JSON, base64, hashing, random, time, OS access,
   HTTP, text, CSV, regular expressions, and assertions — written in Sandy.
+- `queue` — immutable stacks (LIFO) and queues (FIFO) built on lists.
 
 ### Concurrency
 - Real OS-thread tasks via `spawn`/`wait` and typed channels
