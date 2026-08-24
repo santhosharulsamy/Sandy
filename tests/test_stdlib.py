@@ -398,5 +398,45 @@ class TestAssert(StdlibCase):
         self.check(src, expected)
 
 
+class TestQueue(StdlibCase):
+    P = 'import "queue" as queue\n'
+
+    def test_add_and_size(self):
+        src = (self.P +
+               "c = queue.new()\n"
+               "c = queue.add(c, 1)\n"
+               "c = queue.add(c, 2)\n"
+               "c = queue.add(c, 3)\n"
+               "print(c)\n"
+               "print(queue.size(c))\n"
+               "print(queue.is_empty(c))\n"
+               "print(queue.is_empty(queue.new()))\n")
+        self.check(src, "[1, 2, 3]\n3\nfalse\ntrue\n")
+
+    def test_stack_lifo(self):
+        src = (self.P +
+               "c = queue.add(queue.add(queue.add(queue.new(), 1), 2), 3)\n"
+               "print(queue.peek_last(c))\n"
+               "print(queue.pop_last(c))\n"
+               "print(c)\n")  # original is unchanged (immutable)
+        self.check(src, "3\n[1, 2]\n[1, 2, 3]\n")
+
+    def test_queue_fifo(self):
+        src = (self.P +
+               "c = queue.add(queue.add(queue.add(queue.new(), 1), 2), 3)\n"
+               "print(queue.peek_first(c))\n"
+               "print(queue.pop_first(c))\n"
+               "print(c)\n")  # original is unchanged (immutable)
+        self.check(src, "1\n[2, 3]\n[1, 2, 3]\n")
+
+    def test_empty_errors(self):
+        src = (self.P +
+               'msg = "none"\n'
+               "try { print(queue.peek_first(queue.new())) }"
+               " catch e { msg = e }\n"
+               "print(msg)\n")
+        self.check(src, "peek_first of an empty collection\n")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
